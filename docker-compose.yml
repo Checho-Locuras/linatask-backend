@@ -1,0 +1,6 @@
+services:
+  linatask.api:
+    image: ${DOCKER_REGISTRY-}linataskapi
+    build:
+      context: .
+      dockerfile: LinaTask.Api/Dockerfile
