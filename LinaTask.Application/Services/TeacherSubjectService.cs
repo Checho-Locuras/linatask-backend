@@ -91,6 +91,8 @@ namespace LinaTask.Application.Services
             if (updateDto.IsPrimary.HasValue)
                 teacherSubject.IsPrimary = updateDto.IsPrimary.Value;
 
+            teacherSubject.CreatedAt = teacherSubject.CreatedAt.ToUniversalTime();
+
             var updated = await _teacherSubjectRepository.UpdateAsync(teacherSubject);
             return MapToDto(updated);
         }

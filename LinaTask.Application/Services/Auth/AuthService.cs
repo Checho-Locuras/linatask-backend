@@ -69,7 +69,8 @@ namespace LinaTask.Application.Services.Auth
                 Email = registerDto.Email.ToLower(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
                 Role = registerDto.Role.ToLower(),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
             };
 
             var createdUser = await _userRepository.CreateAsync(user);
@@ -185,7 +186,8 @@ namespace LinaTask.Application.Services.Auth
                 Email = user.Email,
                 Role = user.Role,
                 Rating = user.Rating,
-                CreatedAt = user.CreatedAt
+                CreatedAt = user.CreatedAt,
+                ProfilePhoto = user.ProfilePhoto
             };
         }
     }

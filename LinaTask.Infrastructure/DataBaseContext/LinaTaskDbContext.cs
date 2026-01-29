@@ -26,6 +26,11 @@ namespace LinaTask.Infrastructure.DataBaseContext
             {
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.Rating).HasPrecision(2, 1);
+
+                // Configurar el nuevo campo
+                entity.Property(u => u.ProfilePhoto)
+                      .HasColumnType("text")
+                      .IsRequired(false); // Opcional, por si el usuario no tiene foto
             });
 
             // Configuración de TeacherProfile

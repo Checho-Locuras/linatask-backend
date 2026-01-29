@@ -26,13 +26,18 @@ namespace LinaTask.Domain.Models
         [Required]
         [MaxLength(20)]
         public string Role { get; set; }
-        public virtual ICollection<TeacherSubject> TeacherSubjects { get; set; }
-        = new List<TeacherSubject>();
+
+        [Column(TypeName = "text")]
+        public string? ProfilePhoto { get; set; } // Almacenará Base64 o null
 
         [Column(TypeName = "decimal(2,1)")]
         public decimal? Rating { get; set; }
 
         public DateTime CreatedAt { get; set; }
+        public bool IsActive { get; set; }
+
+        public virtual ICollection<TeacherSubject> TeacherSubjects { get; set; }
+        = new List<TeacherSubject>();
 
         // Propiedades de navegación
         public virtual TeacherProfile TeacherProfile { get; set; }

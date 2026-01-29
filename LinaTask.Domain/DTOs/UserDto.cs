@@ -12,5 +12,7 @@ namespace LinaTask.Domain.DTOs
         public string Role { get; set; } = string.Empty;
         public decimal? Rating { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string? ProfilePhoto { get; set; }
+
     }
 }

@@ -2,6 +2,7 @@
 using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using System.Threading.Tasks;
 
 namespace LinaTask.Application.Services
 {
@@ -90,6 +91,8 @@ namespace LinaTask.Application.Services
 
             if (!string.IsNullOrEmpty(updateOfferDto.Status))
                 offer.Status = updateOfferDto.Status;
+
+            offer.CreatedAt = offer.CreatedAt.ToUniversalTime();
 
             var updatedOffer = await _offerRepository.UpdateAsync(offer);
             return MapToDto(updatedOffer);

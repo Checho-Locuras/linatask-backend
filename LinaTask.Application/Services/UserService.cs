@@ -67,6 +67,15 @@ namespace LinaTask.Application.Services
             if (updateUserDto.Rating.HasValue)
                 user.Rating = updateUserDto.Rating.Value;
 
+            if (!string.IsNullOrEmpty(updateUserDto.Role))
+                user.Role = updateUserDto.Role;
+            
+            if (!string.IsNullOrEmpty(updateUserDto.ProfilePhoto))
+                user.ProfilePhoto = updateUserDto.ProfilePhoto;
+
+            if(updateUserDto.IsActive.HasValue)
+                user.IsActive = updateUserDto.IsActive.Value;
+
             user.CreatedAt = user.CreatedAt.ToUniversalTime();
 
             var updatedUser = await _userRepository.UpdateAsync(user);
@@ -87,7 +96,8 @@ namespace LinaTask.Application.Services
                 Email = user.Email,
                 Role = user.Role,
                 Rating = user.Rating,
-                CreatedAt = user.CreatedAt
+                CreatedAt = user.CreatedAt,
+                ProfilePhoto = user.ProfilePhoto
             };
         }
     }

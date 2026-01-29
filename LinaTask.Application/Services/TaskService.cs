@@ -87,6 +87,8 @@ namespace LinaTask.Application.Services
             if (!string.IsNullOrEmpty(updateTaskDto.Status))
                 task.Status = updateTaskDto.Status;
 
+            task.CreatedAt = task.CreatedAt.ToUniversalTime();
+
             var updatedTask = await _taskRepository.UpdateAsync(task);
             return MapToDto(updatedTask);
         }

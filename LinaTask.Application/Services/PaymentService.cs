@@ -5,6 +5,7 @@ using LinaTask.Domain.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace LinaTask.Application.Services
 {
@@ -111,6 +112,8 @@ namespace LinaTask.Application.Services
 
                 payment.Status = updatePaymentDto.Status;
             }
+
+            payment.CreatedAt = payment.CreatedAt.ToUniversalTime();
 
             var updatedPayment = await _paymentRepository.UpdateAsync(payment);
             return MapToDto(updatedPayment);

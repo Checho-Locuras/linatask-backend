@@ -129,6 +129,8 @@ namespace LinaTask.Application.Services
                 session.Status = updateDto.Status;
             }
 
+            session.CreatedAt = session.CreatedAt.ToUniversalTime();
+
             var updatedSession = await _sessionRepository.UpdateAsync(session);
             return MapToDto(updatedSession);
         }

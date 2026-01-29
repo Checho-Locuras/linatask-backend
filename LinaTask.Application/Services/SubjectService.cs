@@ -83,6 +83,8 @@ namespace LinaTask.Application.Services
             if (updateSubjectDto.IsActive.HasValue)
                 subject.IsActive = updateSubjectDto.IsActive.Value;
 
+            subject.CreatedAt = subject.CreatedAt.ToUniversalTime();
+
             var updatedSubject = await _subjectRepository.UpdateAsync(subject);
             return MapToDto(updatedSubject);
         }
