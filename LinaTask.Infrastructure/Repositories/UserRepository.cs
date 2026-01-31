@@ -40,6 +40,13 @@ namespace LinaTask.Infrastructure.Repositories
                 .Include(u => u.TeacherProfile)
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
+        
+        public async Task<User?> GetByPhoneAsync(string phone)
+        {
+            return await _context.Users
+                .Include(u => u.TeacherProfile)
+                .FirstOrDefaultAsync(u => u.PhoneNumber == phone);
+        }
 
         public async Task<User> CreateAsync(User user)
         {

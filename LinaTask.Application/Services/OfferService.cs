@@ -115,7 +115,7 @@ namespace LinaTask.Application.Services
                 Price = offer.Price,
                 Message = offer.Message,
                 Status = offer.Status,
-                CreatedAt = offer.CreatedAt
+                CreatedAt = offer.CreatedAt, 
             };
         }
     }

@@ -15,6 +15,10 @@ namespace LinaTask.Domain.Models
         [MaxLength(100)]
         public string Name { get; set; }
 
+ 
+        [MaxLength(20)]
+        public string? PhoneNumber { get; set; }
+
         [Required]
         [MaxLength(150)]
         [EmailAddress]
@@ -38,6 +42,10 @@ namespace LinaTask.Domain.Models
 
         public virtual ICollection<TeacherSubject> TeacherSubjects { get; set; }
         = new List<TeacherSubject>();
+
+        public ICollection<PasswordResetToken> PasswordResetTokens { get; set; }
+        = new List<PasswordResetToken>();
+
 
         // Propiedades de navegación
         public virtual TeacherProfile TeacherProfile { get; set; }

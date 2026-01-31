@@ -45,7 +45,8 @@ namespace LinaTask.Application.Services
                 Email = createUserDto.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(createUserDto.Password),
                 Role = createUserDto.Role,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PhoneNumber = createUserDto.PhoneNumber
             };
 
             var createdUser = await _userRepository.CreateAsync(user);
@@ -69,6 +70,9 @@ namespace LinaTask.Application.Services
 
             if (!string.IsNullOrEmpty(updateUserDto.Role))
                 user.Role = updateUserDto.Role;
+
+            if (!string.IsNullOrEmpty(updateUserDto.PhoneNumber))
+                user.PhoneNumber = updateUserDto.PhoneNumber;
             
             if (!string.IsNullOrEmpty(updateUserDto.ProfilePhoto))
                 user.ProfilePhoto = updateUserDto.ProfilePhoto;
@@ -97,7 +101,9 @@ namespace LinaTask.Application.Services
                 Role = user.Role,
                 Rating = user.Rating,
                 CreatedAt = user.CreatedAt,
-                ProfilePhoto = user.ProfilePhoto
+                ProfilePhoto = user.ProfilePhoto,
+                IsActive = user.IsActive,
+                PhoneNumber = user.PhoneNumber
             };
         }
     }

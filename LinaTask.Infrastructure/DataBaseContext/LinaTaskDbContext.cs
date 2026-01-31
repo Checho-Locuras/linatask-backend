@@ -16,6 +16,8 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<TutoringSession> TutoringSessions { get; set; }
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<TeacherSubject> TeacherSubjects { get; set; }
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -132,6 +134,83 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(ts => ts.ExperienceYears)
                       .HasColumnType("integer");
             });
+
+            // Configuración de PasswordResetToken
+            modelBuilder.Entity<PasswordResetToken>(entity =>
+            {
+                entity.ToTable("password_reset_tokens");
+
+                entity.HasKey(prt => prt.Id);
+
+                entity.Property(prt => prt.Id)
+                      .HasColumnName("id")
+                      .HasDefaultValueSql("gen_random_uuid()");
+
+                entity.Property(prt => prt.UserId)
+                      .HasColumnName("user_id")
+                      .IsRequired();
+
+                entity.Property(prt => prt.Token)
+                      .HasColumnName("token")
+                      .HasMaxLength(6)
+                      .IsRequired();
+
+                entity.Property(prt => prt.DeliveryMethod)
+                      .HasColumnName("delivery_method")
+                      .HasMaxLength(20)
+                      .IsRequired();
+
+                entity.Property(prt => prt.DeliveryDestination)
+                      .HasColumnName("delivery_destination")
+                      .HasMaxLength(255)
+                      .IsRequired();
+
+                entity.Property(prt => prt.ExpiresAt)
+                      .HasColumnName("expires_at")
+                      .IsRequired();
+
+                entity.Property(prt => prt.IsUsed)
+                      .HasColumnName("is_used")
+                      .HasDefaultValue(false);
+
+                entity.Property(prt => prt.UsedAt)
+                      .HasColumnName("used_at");
+
+                entity.Property(prt => prt.CreatedAt)
+                      .HasColumnName("created_at")
+                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(prt => prt.IpAddress)
+                      .HasColumnName("ip_address")
+                      .HasMaxLength(45);
+
+                entity.Property(prt => prt.UserAgent)
+                      .HasColumnName("user_agent")
+                      .HasColumnType("text");
+
+                // Relación con User
+                entity.HasOne(prt => prt.User)
+                      .WithMany(u => u.PasswordResetTokens)
+                      .HasForeignKey(prt => prt.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Índices
+                entity.HasIndex(prt => prt.UserId)
+                      .HasDatabaseName("idx_password_reset_tokens_user_id");
+
+                entity.HasIndex(prt => prt.Token)
+                      .HasDatabaseName("idx_password_reset_tokens_token");
+
+                entity.HasIndex(prt => prt.ExpiresAt)
+                      .HasDatabaseName("idx_password_reset_tokens_expires_at");
+
+                // CHECK constraint
+                entity.HasCheckConstraint(
+                    "check_delivery_method",
+                    "delivery_method IN ('email', 'sms')"
+                );
+            });
+
         }
     }
 }

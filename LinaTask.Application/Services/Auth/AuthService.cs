@@ -27,26 +27,33 @@ namespace LinaTask.Application.Services.Auth
 
         public async Task<AuthResponseDto> LoginAsync(LoginDto loginDto)
         {
-            // Buscar usuario por email
-            var user = await _userRepository.GetByEmailAsync(loginDto.Email);
-            if (user == null)
-                throw new UnauthorizedAccessException("Invalid email or password");
-
-            // Verificar contraseña
-            if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
-                throw new UnauthorizedAccessException("Invalid email or password");
-
-            // Generar tokens
-            var token = GenerateJwtToken(user);
-            var refreshToken = GenerateRefreshToken();
-
-            return new AuthResponseDto
+            try
             {
-                Token = token,
-                RefreshToken = refreshToken,
-                Expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
-                User = MapToUserDto(user)
-            };
+                // Buscar usuario por email
+                var user = await _userRepository.GetByEmailAsync(loginDto.Email);
+                if (user == null)
+                    throw new UnauthorizedAccessException("Invalid email or password");
+
+                // Verificar contraseña
+                if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
+                    throw new UnauthorizedAccessException("Invalid email or password");
+
+                // Generar tokens
+                var token = GenerateJwtToken(user);
+                var refreshToken = GenerateRefreshToken();
+
+                return new AuthResponseDto
+                {
+                    Token = token,
+                    RefreshToken = refreshToken,
+                    Expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
+                    User = MapToUserDto(user)
+                };
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
         }
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
@@ -55,6 +62,10 @@ namespace LinaTask.Application.Services.Auth
             var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
             if (existingUser != null)
                 throw new InvalidOperationException("Email already registered");
+
+            existingUser = await _userRepository.GetByPhoneAsync(registerDto.Phone);
+            if (existingUser != null)
+                throw new InvalidOperationException("Phone number already registered");
 
             // Validar rol
             var validRoles = new[] { "student", "teacher", "admin" };
@@ -66,6 +77,7 @@ namespace LinaTask.Application.Services.Auth
             {
                 Id = Guid.NewGuid(),
                 Name = registerDto.Name,
+                PhoneNumber = registerDto.Phone,
                 Email = registerDto.Email.ToLower(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
                 Role = registerDto.Role.ToLower(),
@@ -187,7 +199,8 @@ namespace LinaTask.Application.Services.Auth
                 Role = user.Role,
                 Rating = user.Rating,
                 CreatedAt = user.CreatedAt,
-                ProfilePhoto = user.ProfilePhoto
+                ProfilePhoto = user.ProfilePhoto,
+                PhoneNumber = user.PhoneNumber
             };
         }
     }
