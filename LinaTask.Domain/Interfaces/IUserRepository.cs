@@ -12,5 +12,10 @@ namespace LinaTask.Domain.Interfaces
         Task<User> UpdateAsync(User user);
         Task<bool> DeleteAsync(Guid id);
         Task<bool> ExistsAsync(Guid id);
+        Task<UserAddress> AddAddressAsync(UserAddress address);
+        Task<UserAddress?> GetAddressByIdAsync(Guid addressId);
+        Task<IEnumerable<UserAddress>> GetUserAddressesAsync(Guid userId);
+        Task<UserAddress> UpdateAddressAsync(UserAddress address);
+        Task<bool> DeleteAddressAsync(Guid addressId);
     }
 }

@@ -8,6 +8,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public LinaTaskDbContext(DbContextOptions<LinaTaskDbContext> options)
             : base(options) { }
 
+        // =========================
+        // CORE
+        // =========================
         public DbSet<User> Users { get; set; }
         public DbSet<TeacherProfile> TeacherProfiles { get; set; }
         public DbSet<TaskU> Tasks { get; set; }
@@ -17,6 +20,17 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<TeacherSubject> TeacherSubjects { get; set; }
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+        public DbSet<UserAcademicProfile> UserAcademicProfiles { get; set; }
+        public DbSet<UserAddress> UserAddresses { get; set; }
+
+
+        // =========================
+        // LOCATION / UTILITIES
+        // =========================
+        public DbSet<Country> Countries { get; set; }
+        public DbSet<Department> Departments { get; set; }
+        public DbSet<City> Cities { get; set; }
+        public DbSet<Institution> Institutions { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -28,6 +42,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
             {
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.Rating).HasPrecision(2, 1);
+                entity.Property(u => u.BirthDate)
+                    .HasColumnType("date");
+
 
                 // Configurar el nuevo campo
                 entity.Property(u => u.ProfilePhoto)
@@ -210,6 +227,121 @@ namespace LinaTask.Infrastructure.DataBaseContext
                     "delivery_method IN ('email', 'sms')"
                 );
             });
+
+            modelBuilder.Entity<UserAcademicProfile>(entity =>
+            {
+                entity.ToTable("user_academic_profiles");
+
+                entity.HasKey(uap => uap.Id);
+
+                entity.Property(uap => uap.EducationLevel)
+                      .HasMaxLength(50)
+                      .IsRequired();
+
+                entity.Property(uap => uap.AcademicStatus)
+                      .HasMaxLength(30)
+                      .IsRequired();
+
+                entity.Property(uap => uap.StudyArea)
+                      .HasMaxLength(100);
+
+                entity.Property(uap => uap.CreatedAt)
+                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(uap => uap.User)
+                      .WithMany(u => u.AcademicProfiles)
+                      .HasForeignKey(uap => uap.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(uap => uap.Institution)
+                      .WithMany()
+                      .HasForeignKey(uap => uap.InstitutionId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // En el método OnModelCreating, agrega:
+
+            // =========================
+            // USER ADDRESSES
+            // =========================
+            modelBuilder.Entity<UserAddress>(entity =>
+            {
+                entity.ToTable("user_addresses");
+
+                entity.HasKey(ua => ua.Id);
+
+                entity.Property(ua => ua.Id)
+                      .HasColumnName("id");
+
+                entity.Property(ua => ua.UserId)
+                      .HasColumnName("user_id")
+                      .IsRequired();
+
+                entity.Property(ua => ua.CityId)
+                      .HasColumnName("city_id")
+                      .IsRequired();
+
+                entity.Property(ua => ua.Address)
+                      .HasColumnName("address")
+                      .HasMaxLength(255)
+                      .IsRequired();
+
+                entity.Property(ua => ua.IsPrimary)
+                      .HasColumnName("is_primary")
+                      .HasDefaultValue(false);
+
+                entity.Property(ua => ua.CreatedAt)
+                      .HasColumnName("created_at")
+                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                // Relación con User
+                entity.HasOne(ua => ua.User)
+                      .WithMany(u => u.Addresses)
+                      .HasForeignKey(ua => ua.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Relación con City
+                entity.HasOne(ua => ua.City)
+                      .WithMany()
+                      .HasForeignKey(ua => ua.CityId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Índices
+                entity.HasIndex(ua => ua.UserId)
+                      .HasDatabaseName("idx_user_addresses_user_id");
+
+                entity.HasIndex(ua => new { ua.UserId, ua.IsPrimary })
+                      .HasDatabaseName("idx_user_addresses_user_primary");
+            });
+
+            // =========================
+            // COUNTRY → DEPARTMENT
+            // =========================
+            modelBuilder.Entity<Department>()
+                .HasOne(d => d.Country)
+                .WithMany(c => c.Departments)
+                .HasForeignKey(d => d.CountryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // =========================
+            // DEPARTMENT → CITY
+            // =========================
+            modelBuilder.Entity<City>()
+                .HasOne(c => c.Department)
+                .WithMany(d => d.Cities)
+                .HasForeignKey(c => c.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // =========================
+            // CITY → INSTITUTION
+            // =========================
+            modelBuilder.Entity<Institution>()
+                .HasOne(i => i.City)
+                .WithMany(c => c.Institutions)
+                .HasForeignKey(i => i.CityId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
 
         }
     }

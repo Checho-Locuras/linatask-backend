@@ -55,6 +55,7 @@ builder.Services.AddScoped<ITeacherSubjectRepository, TeacherSubjectRepository>(
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<ITutoringSessionRepository, TutoringSessionRepository>();
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+builder.Services.AddScoped<ILocationRepository, LocationRepository>();
 
 
 // Registrar TODOS los Servicios
@@ -70,6 +71,9 @@ builder.Services.AddScoped<ITutoringSessionService, TutoringSessionService>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ILocationRepository, LocationRepository>();
+builder.Services.AddScoped<ILocationService, LocationService>();
+
 
 // Configurar Controllers
 builder.Services.AddControllers();

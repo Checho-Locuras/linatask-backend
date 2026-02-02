@@ -148,5 +148,145 @@ namespace LinaTask.Api.Controllers
                 return StatusCode(500, "Error interno del servidor");
             }
         }
+
+        /// <summary>
+        /// Obtiene todas las direcciones de un usuario
+        /// </summary>
+        [HttpGet("{userId:guid}/addresses")]
+        [ProducesResponseType(typeof(IEnumerable<UserAddressDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<IEnumerable<UserAddressDto>>> GetUserAddresses(Guid userId)
+        {
+            try
+            {
+                var addresses = await _userService.GetUserAddressesAsync(userId);
+                return Ok(addresses);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener direcciones del usuario {UserId}", userId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        /// <summary>
+        /// Agrega una nueva dirección a un usuario
+        /// </summary>
+        [HttpPost("{userId:guid}/addresses")]
+        [ProducesResponseType(typeof(UserAddressDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserAddressDto>> AddAddress(
+            Guid userId,
+            [FromBody] CreateAddressDto createAddressDto)
+        {
+            try
+            {
+                var address = await _userService.AddAddressAsync(userId, createAddressDto);
+                return CreatedAtAction(
+                    nameof(GetUserAddresses),
+                    new { userId },
+                    address);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al agregar dirección al usuario {UserId}", userId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        /// <summary>
+        /// Actualiza una dirección existente
+        /// </summary>
+        [HttpPut("addresses/{addressId:guid}")]
+        [ProducesResponseType(typeof(UserAddressDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserAddressDto>> UpdateAddress(
+            Guid addressId,
+            [FromBody] UpdateAddressDto updateAddressDto)
+        {
+            try
+            {
+                var address = await _userService.UpdateAddressAsync(addressId, updateAddressDto);
+                return Ok(address);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al actualizar dirección {AddressId}", addressId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        /// <summary>
+        /// Elimina una dirección
+        /// </summary>
+        [HttpDelete("addresses/{addressId:guid}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> DeleteAddress(Guid addressId)
+        {
+            try
+            {
+                var deleted = await _userService.DeleteAddressAsync(addressId);
+                if (!deleted)
+                    return NotFound($"Dirección con ID {addressId} no encontrada");
+
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al eliminar dirección {AddressId}", addressId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        /// <summary>
+        /// Marca una dirección como primaria
+        /// </summary>
+        [HttpPut("addresses/{addressId:guid}/set-primary")]
+        [ProducesResponseType(typeof(UserAddressDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<UserAddressDto>> SetPrimaryAddress(Guid addressId)
+        {
+            try
+            {
+                var address = await _userService.SetPrimaryAddressAsync(addressId);
+                return Ok(address);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al establecer dirección primaria {AddressId}", addressId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
     }
 }

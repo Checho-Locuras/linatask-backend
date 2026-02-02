@@ -4,17 +4,20 @@ using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace LinaTask.Application.Services
 {
     public class UserService : IUserService
     {
         private readonly IUserRepository _userRepository;
+        private readonly ILocationRepository _locationRepository;
 
-        public UserService(IUserRepository userRepository)
+        public UserService(IUserRepository userRepository, ILocationRepository locationRepository)
         {
             _userRepository = userRepository;
+            _locationRepository = locationRepository;
         }
 
         public async Task<IEnumerable<UserDto>> GetAllUsersAsync()
@@ -37,17 +40,60 @@ namespace LinaTask.Application.Services
 
         public async Task<UserDto> CreateUserAsync(CreateUserDto createUserDto)
         {
-            // Aquí deberías hashear la contraseña con BCrypt o similar
+            // Validar que la institución existe
+            var institution = await _locationRepository.GetInstitutionByIdAsync(createUserDto.InstitutionId);
+            if (institution == null)
+                throw new InvalidOperationException("Institución no encontrada");
+
+            // Validar que la ciudad existe
+            var city = await _locationRepository.GetCityByIdAsync(createUserDto.CityId);
+            if (city == null)
+                throw new InvalidOperationException("Ciudad no encontrada");
+
+            // Crear usuario
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Name = createUserDto.Name,
-                Email = createUserDto.Email,
+                Email = createUserDto.Email.ToLower(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(createUserDto.Password),
-                Role = createUserDto.Role,
+                Role = createUserDto.Role.ToLower(),
+                PhoneNumber = createUserDto.PhoneNumber,
+                ProfilePhoto = createUserDto.ProfilePhoto,
+                BirthDate = createUserDto.BirthDate,
                 CreatedAt = DateTime.UtcNow,
-                PhoneNumber = createUserDto.PhoneNumber
+                IsActive = true
             };
+
+            // Crear perfil académico
+            var academicProfile = new UserAcademicProfile
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                InstitutionId = createUserDto.InstitutionId,
+                EducationLevel = createUserDto.EducationLevel,
+                CurrentSemester = createUserDto.CurrentSemester,
+                CurrentGrade = createUserDto.CurrentGrade,
+                GraduationYear = createUserDto.GraduationYear,
+                StudyArea = createUserDto.StudyArea,
+                AcademicStatus = createUserDto.AcademicStatus,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            // Crear dirección inicial
+            var address = new UserAddress
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                CityId = createUserDto.CityId,
+                Address = createUserDto.Address,
+                IsPrimary = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            // Agregar relaciones
+            user.AcademicProfiles.Add(academicProfile);
+            user.Addresses.Add(address);
 
             var createdUser = await _userRepository.CreateAsync(user);
             return MapToDto(createdUser);
@@ -57,30 +103,33 @@ namespace LinaTask.Application.Services
         {
             var user = await _userRepository.GetByIdAsync(id);
             if (user == null)
-                throw new KeyNotFoundException($"User with ID {id} not found");
+                throw new KeyNotFoundException($"Usuario con ID {id} no encontrado");
 
+            // Actualizar solo los campos que vienen en el DTO
             if (!string.IsNullOrEmpty(updateUserDto.Name))
                 user.Name = updateUserDto.Name;
 
             if (!string.IsNullOrEmpty(updateUserDto.Email))
-                user.Email = updateUserDto.Email;
+                user.Email = updateUserDto.Email.ToLower();
 
             if (updateUserDto.Rating.HasValue)
                 user.Rating = updateUserDto.Rating.Value;
 
-            if (!string.IsNullOrEmpty(updateUserDto.Role))
-                user.Role = updateUserDto.Role;
-
             if (!string.IsNullOrEmpty(updateUserDto.PhoneNumber))
                 user.PhoneNumber = updateUserDto.PhoneNumber;
-            
+
             if (!string.IsNullOrEmpty(updateUserDto.ProfilePhoto))
                 user.ProfilePhoto = updateUserDto.ProfilePhoto;
 
-            if(updateUserDto.IsActive.HasValue)
+            if (updateUserDto.BirthDate.HasValue)
+                user.BirthDate = updateUserDto.BirthDate.Value;
+
+            if (updateUserDto.IsActive.HasValue)
                 user.IsActive = updateUserDto.IsActive.Value;
 
-            user.CreatedAt = user.CreatedAt.ToUniversalTime();
+            // Si se proporciona una nueva contraseña, hashearla
+            if (!string.IsNullOrEmpty(updateUserDto.Password))
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateUserDto.Password);
 
             var updatedUser = await _userRepository.UpdateAsync(user);
             return MapToDto(updatedUser);
@@ -90,6 +139,190 @@ namespace LinaTask.Application.Services
         {
             return await _userRepository.DeleteAsync(id);
         }
+
+        // ==========================================
+        // MÉTODOS PARA DIRECCIONES
+        // ==========================================
+
+        public async Task<UserAddressDto> AddAddressAsync(Guid userId, CreateAddressDto createAddressDto)
+        {
+            // Verificar que el usuario existe
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+                throw new KeyNotFoundException($"Usuario con ID {userId} no encontrado");
+
+            // Verificar que la ciudad existe
+            var city = await _locationRepository.GetCityByIdAsync(createAddressDto.CityId);
+            if (city == null)
+                throw new InvalidOperationException("Ciudad no encontrada");
+
+            // Si se marca como primaria, desmarcar las demás
+            if (createAddressDto.IsPrimary)
+            {
+                var existingAddresses = await _userRepository.GetUserAddressesAsync(userId);
+                foreach (var addr in existingAddresses.Where(a => a.IsPrimary))
+                {
+                    addr.IsPrimary = false;
+                    await _userRepository.UpdateAddressAsync(addr);
+                }
+            }
+
+            var address = new UserAddress
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                CityId = createAddressDto.CityId,
+                Address = createAddressDto.Address,
+                IsPrimary = createAddressDto.IsPrimary,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var createdAddress = await _userRepository.AddAddressAsync(address);
+
+            return new UserAddressDto
+            {
+                Id = createdAddress.Id,
+                CityId = createdAddress.CityId,
+                CityName = city.Name,
+                DepartmentName = city.Department?.Name ?? "",
+                CountryName = city.Department?.Country?.Name ?? "",
+                Address = createdAddress.Address,
+                IsPrimary = createdAddress.IsPrimary,
+                CreatedAt = createdAddress.CreatedAt
+            };
+        }
+
+        public async Task<UserAddressDto> UpdateAddressAsync(Guid addressId, UpdateAddressDto updateAddressDto)
+        {
+            var address = await _userRepository.GetAddressByIdAsync(addressId);
+            if (address == null)
+                throw new KeyNotFoundException($"Dirección con ID {addressId} no encontrada");
+
+            // Si se cambia la ciudad, validar que existe
+            if (updateAddressDto.CityId.HasValue)
+            {
+                var city = await _locationRepository.GetCityByIdAsync(updateAddressDto.CityId.Value);
+                if (city == null)
+                    throw new InvalidOperationException("Ciudad no encontrada");
+
+                address.CityId = updateAddressDto.CityId.Value;
+            }
+
+            if (!string.IsNullOrEmpty(updateAddressDto.Address))
+                address.Address = updateAddressDto.Address;
+
+            // Si se marca como primaria, desmarcar las demás
+            if (updateAddressDto.IsPrimary.HasValue && updateAddressDto.IsPrimary.Value)
+            {
+                var existingAddresses = await _userRepository.GetUserAddressesAsync(address.UserId);
+                foreach (var addr in existingAddresses.Where(a => a.Id != addressId && a.IsPrimary))
+                {
+                    addr.IsPrimary = false;
+                    await _userRepository.UpdateAddressAsync(addr);
+                }
+                address.IsPrimary = true;
+            }
+
+            var updatedAddress = await _userRepository.UpdateAddressAsync(address);
+            var cityData = await _locationRepository.GetCityByIdAsync(updatedAddress.CityId);
+
+            return new UserAddressDto
+            {
+                Id = updatedAddress.Id,
+                CityId = updatedAddress.CityId,
+                CityName = cityData?.Name ?? "",
+                DepartmentName = cityData?.Department?.Name ?? "",
+                CountryName = cityData?.Department?.Country?.Name ?? "",
+                Address = updatedAddress.Address,
+                IsPrimary = updatedAddress.IsPrimary,
+                CreatedAt = updatedAddress.CreatedAt
+            };
+        }
+
+        public async Task<bool> DeleteAddressAsync(Guid addressId)
+        {
+            var address = await _userRepository.GetAddressByIdAsync(addressId);
+            if (address == null)
+                return false;
+
+            // No permitir eliminar si es la única dirección
+            var userAddresses = await _userRepository.GetUserAddressesAsync(address.UserId);
+            if (userAddresses.Count() == 1)
+                throw new InvalidOperationException("No se puede eliminar la única dirección del usuario");
+
+            // Si era primaria, asignar otra como primaria
+            if (address.IsPrimary)
+            {
+                var newPrimary = userAddresses.FirstOrDefault(a => a.Id != addressId);
+                if (newPrimary != null)
+                {
+                    newPrimary.IsPrimary = true;
+                    await _userRepository.UpdateAddressAsync(newPrimary);
+                }
+            }
+
+            return await _userRepository.DeleteAddressAsync(addressId);
+        }
+
+        public async Task<UserAddressDto> SetPrimaryAddressAsync(Guid addressId)
+        {
+            var address = await _userRepository.GetAddressByIdAsync(addressId);
+            if (address == null)
+                throw new KeyNotFoundException($"Dirección con ID {addressId} no encontrada");
+
+            // Desmarcar todas las direcciones del usuario
+            var userAddresses = await _userRepository.GetUserAddressesAsync(address.UserId);
+            foreach (var addr in userAddresses.Where(a => a.IsPrimary))
+            {
+                addr.IsPrimary = false;
+                await _userRepository.UpdateAddressAsync(addr);
+            }
+
+            // Marcar la nueva como primaria
+            address.IsPrimary = true;
+            var updatedAddress = await _userRepository.UpdateAddressAsync(address);
+            var city = await _locationRepository.GetCityByIdAsync(updatedAddress.CityId);
+
+            return new UserAddressDto
+            {
+                Id = updatedAddress.Id,
+                CityId = updatedAddress.CityId,
+                CityName = city?.Name ?? "",
+                DepartmentName = city?.Department?.Name ?? "",
+                CountryName = city?.Department?.Country?.Name ?? "",
+                Address = updatedAddress.Address,
+                IsPrimary = updatedAddress.IsPrimary,
+                CreatedAt = updatedAddress.CreatedAt
+            };
+        }
+
+        public async Task<IEnumerable<UserAddressDto>> GetUserAddressesAsync(Guid userId)
+        {
+            var addresses = await _userRepository.GetUserAddressesAsync(userId);
+            var result = new List<UserAddressDto>();
+
+            foreach (var address in addresses)
+            {
+                var city = await _locationRepository.GetCityByIdAsync(address.CityId);
+                result.Add(new UserAddressDto
+                {
+                    Id = address.Id,
+                    CityId = address.CityId,
+                    CityName = city?.Name ?? "",
+                    DepartmentName = city?.Department?.Name ?? "",
+                    CountryName = city?.Department?.Country?.Name ?? "",
+                    Address = address.Address,
+                    IsPrimary = address.IsPrimary,
+                    CreatedAt = address.CreatedAt
+                });
+            }
+
+            return result;
+        }
+
+        // ==========================================
+        // MAPEO PRIVADO
+        // ==========================================
 
         private static UserDto MapToDto(User user)
         {
@@ -101,9 +334,38 @@ namespace LinaTask.Application.Services
                 Role = user.Role,
                 Rating = user.Rating,
                 CreatedAt = user.CreatedAt,
-                ProfilePhoto = user.ProfilePhoto,
                 IsActive = user.IsActive,
-                PhoneNumber = user.PhoneNumber
+                ProfilePhoto = user.ProfilePhoto,
+                PhoneNumber = user.PhoneNumber,
+                BirthDate = user.BirthDate,
+
+                // Mapear perfiles académicos
+                AcademicProfiles = user.AcademicProfiles?.Select(ap => new UserAcademicProfileDto
+                {
+                    Id = ap.Id,
+                    InstitutionId = ap.InstitutionId,
+                    InstitutionName = ap.Institution?.Name ?? "",
+                    EducationLevel = ap.EducationLevel,
+                    CurrentSemester = ap.CurrentSemester,
+                    CurrentGrade = ap.CurrentGrade,
+                    GraduationYear = ap.GraduationYear,
+                    StudyArea = ap.StudyArea,
+                    AcademicStatus = ap.AcademicStatus,
+                    CreatedAt = ap.CreatedAt
+                }).ToList() ?? new List<UserAcademicProfileDto>(),
+
+                // Mapear direcciones
+                Addresses = user.Addresses?.Select(a => new UserAddressDto
+                {
+                    Id = a.Id,
+                    CityId = a.CityId,
+                    CityName = a.City?.Name ?? "",
+                    DepartmentName = a.City?.Department?.Name ?? "",
+                    CountryName = a.City?.Department?.Country?.Name ?? "",
+                    Address = a.Address,
+                    IsPrimary = a.IsPrimary,
+                    CreatedAt = a.CreatedAt
+                }).ToList() ?? new List<UserAddressDto>()
             };
         }
     }

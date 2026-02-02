@@ -9,13 +9,17 @@ namespace LinaTask.Domain.DTOs
     {
         public string? Name { get; set; }
         public string? PhoneNumber { get; set; }
+
+        [EmailAddress]
         public string? Email { get; set; }
-        public string? Role { get; set; }
+
         public decimal? Rating { get; set; }
         public bool? IsActive { get; set; }
 
         [MinLength(6)]
         public string? Password { get; set; }
+
         public string? ProfilePhoto { get; set; }
+        public DateTime? BirthDate { get; set; }
     }
 }
