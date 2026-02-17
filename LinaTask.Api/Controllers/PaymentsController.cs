@@ -1,12 +1,14 @@
-﻿using LinaTask.Application.DTOs;
-using LinaTask.Application.Services;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class PaymentsController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
@@ -18,10 +20,8 @@ namespace LinaTask.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Obtiene todos los pagos
-        /// </summary>
         [HttpGet("getAllPayments")]
+        [PermissionAuthorize("PAYMENT.VIEW")]
         public async Task<ActionResult<IEnumerable<PaymentDto>>> GetAllPayments()
         {
             try
@@ -36,10 +36,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un pago por ID
-        /// </summary>
         [HttpGet("getPaymentById/{id:guid}")]
+        [PermissionAuthorize("PAYMENT.VIEW")]
         public async Task<ActionResult<PaymentDto>> GetPaymentById(Guid id)
         {
             try
@@ -57,10 +55,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene pagos por estudiante
-        /// </summary>
         [HttpGet("getPaymentsByStudentId/{studentId:guid}")]
+        [PermissionAuthorize("PAYMENT.VIEW")]
         public async Task<ActionResult<IEnumerable<PaymentDto>>> GetPaymentsByStudentId(Guid studentId)
         {
             try
@@ -75,10 +71,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene pagos por tarea
-        /// </summary>
         [HttpGet("getPaymentsByTaskId/{taskId:guid}")]
+        [PermissionAuthorize("PAYMENT.VIEW")]
         public async Task<ActionResult<IEnumerable<PaymentDto>>> GetPaymentsByTaskId(Guid taskId)
         {
             try
@@ -93,10 +87,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene pagos por estado
-        /// </summary>
         [HttpGet("getPaymentsByStatus/{status}")]
+        [PermissionAuthorize("PAYMENT.VIEW")]
         public async Task<ActionResult<IEnumerable<PaymentDto>>> GetPaymentsByStatus(string status)
         {
             try
@@ -111,10 +103,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene el total gastado por un estudiante
-        /// </summary>
         [HttpGet("getTotalSpentByStudentId/{studentId:guid}")]
+        [PermissionAuthorize("PAYMENT.VIEW")]
         public async Task<ActionResult<decimal>> GetTotalSpentByStudentId(Guid studentId)
         {
             try
@@ -129,10 +119,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene estadísticas de la plataforma
-        /// </summary>
         [HttpGet("getPlatformStats")]
+        [PermissionAuthorize("PAYMENT.STATS")]
         public async Task<ActionResult<PaymentStatsDto>> GetPlatformStats(
             [FromQuery] DateTime? startDate = null,
             [FromQuery] DateTime? endDate = null)
@@ -149,10 +137,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea un nuevo pago
-        /// </summary>
         [HttpPost("createPayment")]
+        [PermissionAuthorize("PAYMENT.CREATE")]
         public async Task<ActionResult<PaymentDto>> CreatePayment([FromBody] CreatePaymentDto createPaymentDto)
         {
             try
@@ -171,10 +157,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza un pago (principalmente el estado)
-        /// </summary>
         [HttpPut("updatePayment/{id:guid}")]
+        [PermissionAuthorize("PAYMENT.EDIT")]
         public async Task<ActionResult<PaymentDto>> UpdatePayment(Guid id, [FromBody] UpdatePaymentDto updatePaymentDto)
         {
             try
@@ -197,10 +181,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina un pago
-        /// </summary>
         [HttpDelete("deletePayment/{id:guid}")]
+        [PermissionAuthorize("PAYMENT.DELETE")]
         public async Task<IActionResult> DeletePayment(Guid id)
         {
             try

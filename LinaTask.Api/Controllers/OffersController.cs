@@ -1,12 +1,14 @@
-﻿using LinaTask.Application.DTOs;
-using LinaTask.Application.Services;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Requiere autenticación para todo el controlador
     public class OffersController : ControllerBase
     {
         private readonly IOfferService _offerService;
@@ -19,6 +21,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getAllOffers")]
+        [PermissionAuthorize("OFFER.VIEW")]
         public async Task<ActionResult<IEnumerable<OfferDto>>> GetAllOffers()
         {
             try
@@ -34,6 +37,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getOfferById/{id:guid}")]
+        [PermissionAuthorize("OFFER.VIEW")]
         public async Task<ActionResult<OfferDto>> GetOfferById(Guid id)
         {
             try
@@ -52,6 +56,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getOffersByTaskId/{taskId:guid}")]
+        [PermissionAuthorize("OFFER.VIEW")]
         public async Task<ActionResult<IEnumerable<OfferDto>>> GetOffersByTaskId(Guid taskId)
         {
             try
@@ -67,6 +72,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getOffersByTeacherId/{teacherId:guid}")]
+        [PermissionAuthorize("OFFER.VIEW")]
         public async Task<ActionResult<IEnumerable<OfferDto>>> GetOffersByTeacherId(Guid teacherId)
         {
             try
@@ -82,6 +88,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPost("createOffer")]
+        [PermissionAuthorize("OFFER.CREATE")]
         public async Task<ActionResult<OfferDto>> CreateOffer([FromBody] CreateOfferDto createOfferDto)
         {
             try
@@ -101,6 +108,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPut("updateOffer/{id:guid}")]
+        [PermissionAuthorize("OFFER.EDIT")]
         public async Task<ActionResult<OfferDto>> UpdateOffer(Guid id, [FromBody] UpdateOfferDto updateOfferDto)
         {
             try
@@ -120,6 +128,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpDelete("deleteOffer/{id:guid}")]
+        [PermissionAuthorize("OFFER.DELETE")]
         public async Task<IActionResult> DeleteOffer(Guid id)
         {
             try

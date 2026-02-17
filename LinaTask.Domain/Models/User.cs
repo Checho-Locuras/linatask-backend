@@ -23,8 +23,7 @@ namespace LinaTask.Domain.Models
         [Required]
         public string PasswordHash { get; set; }
 
-        [Required, MaxLength(20)]
-        public string Role { get; set; }
+        public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
         public DateTime? BirthDate { get; set; }   // 👈 NUEVO
 

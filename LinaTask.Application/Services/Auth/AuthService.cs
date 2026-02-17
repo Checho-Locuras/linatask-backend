@@ -1,13 +1,13 @@
 ﻿using LinaTask.Application.Services.Interfaces;
+using LinaTask.Domain.Common.Utils;
 using LinaTask.Domain.DTOs;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
 using LinaTask.Domain.Models.Login;
+using LinaTask.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -17,21 +17,27 @@ namespace LinaTask.Application.Services.Auth
 {
     public class AuthService : IAuthService
     {
+        private readonly IPermissionRepository _permissionRepository;
         private readonly IUserRepository _userRepository;
+        private readonly IRoleRepository _roleRepository;
         private readonly ILocationRepository _locationRepository;
         private readonly JwtSettings _jwtSettings;
         private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             IUserRepository userRepository,
+            IRoleRepository roleRepository,
             ILocationRepository locationRepository,
             IOptions<JwtSettings> jwtSettings,
-            ILogger<AuthService> logger)
+            ILogger<AuthService> logger,
+            IPermissionRepository permissionRepository)
         {
             _userRepository = userRepository;
+            _roleRepository = roleRepository;
             _locationRepository = locationRepository;
             _jwtSettings = jwtSettings.Value;
             _logger = logger;
+            _permissionRepository = permissionRepository;
         }
 
         public async Task<AuthResponseDto> LoginAsync(LoginDto loginDto)
@@ -67,6 +73,10 @@ namespace LinaTask.Application.Services.Auth
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
         {
+            // =====================
+            // VALIDACIONES PREVIAS
+            // =====================
+
             // 1. Verificar si el email ya existe
             var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
             if (existingUser != null)
@@ -77,76 +87,159 @@ namespace LinaTask.Application.Services.Auth
             if (existingUser != null)
                 throw new InvalidOperationException("El número de teléfono ya está registrado");
 
-            // 3. Validar rol
-            var validRoles = new[] { "student", "teacher", "admin" };
-            if (!validRoles.Contains(registerDto.Role.ToLower()))
-                throw new InvalidOperationException("Rol inválido");
+            // 3. Validar que no haya perfiles duplicados para el mismo rol
+            ValidateNoDuplicateProfiles(registerDto);
 
-            // 4. Validar que la institución existe
-            var institution = await _locationRepository.GetInstitutionByIdAsync(registerDto.InstitutionId);
-            if (institution == null)
-                throw new InvalidOperationException("Institución no encontrada");
+            // =====================
+            // VALIDAR Y CARGAR ROLES
+            // =====================
 
-            // 5. Validar que la ciudad existe
-            var city = await _locationRepository.GetCityByIdAsync(registerDto.CityId);
-            if (city == null)
-                throw new InvalidOperationException("Ciudad no encontrada");
+            var roles = new List<Role>();
+            if (registerDto.RoleIds == null || !registerDto.RoleIds.Any())
+            {
+                throw new InvalidOperationException("Debes seleccionar al menos un rol");
+            }
 
-            // 6. Crear nuevo usuario
+            foreach (var roleId in registerDto.RoleIds)
+            {
+                var role = await _roleRepository.GetByIdAsync(roleId);
+                if (role == null)
+                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
+                roles.Add(role);
+            }
+
+            // 4. Validar que los roles que requieren perfil académico lo tengan
+            await ValidateAcademicProfiles(registerDto, roles);
+
+            // =====================
+            // VALIDAR UBICACIÓN E INSTITUCIÓN
+            // =====================
+
+            // 6. Validar que todas las instituciones en los perfiles existen
+            var institutionIds = registerDto.AcademicProfiles
+                .Select(p => p.InstitutionId)
+                .Distinct()
+                .ToList();
+
+            foreach (var institutionId in institutionIds)
+            {
+                var institution = await _locationRepository.GetInstitutionByIdAsync(institutionId);
+                if (institution == null)
+                    throw new InvalidOperationException($"Institución con ID {institutionId} no encontrada");
+            }
+
+            // =====================
+            // CREAR USUARIO
+            // =====================
+
+            // 7. Crear nuevo usuario
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Name = registerDto.Name,
-                PhoneNumber = registerDto.Phone,
+                PhoneNumber = PhoneHelper.NormalizeColombianPhone(registerDto.Phone),
                 Email = registerDto.Email.ToLower(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
-                Role = registerDto.Role.ToLower(),
                 BirthDate = registerDto.BirthDate,
                 ProfilePhoto = registerDto.ProfilePhoto,
-                CreatedAt = DateTime.UtcNow.ToUniversalTime(),
+                CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
 
-            // 7. Crear perfil académico inicial
-            var academicProfile = new UserAcademicProfile
+            // =====================
+            // ASIGNAR ROLES
+            // =====================
+
+            // 8. Asignar roles al usuario
+            foreach (var role in roles)
             {
-                Id = Guid.NewGuid(),
-                UserId = user.Id,
-                InstitutionId = registerDto.InstitutionId,
-                EducationLevel = registerDto.EducationLevel,
-                CurrentSemester = registerDto.CurrentSemester,
-                CurrentGrade = registerDto.CurrentGrade,
-                GraduationYear = registerDto.GraduationYear,
-                StudyArea = registerDto.StudyArea,
-                AcademicStatus = registerDto.AcademicStatus,
-                CreatedAt = DateTime.UtcNow.ToUniversalTime()
-            };
+                user.UserRoles.Add(new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = role.Id,
+                });
+            }
 
-            // 8. Crear dirección inicial
-            var address = new UserAddress
+            // =====================
+            // CREAR PERFILES ACADÉMICOS
+            // =====================
+
+            // 9. Crear perfiles académicos (uno por cada rol que lo requiera)
+            foreach (var profileDto in registerDto.AcademicProfiles)
             {
-                Id = Guid.NewGuid(),
-                UserId = user.Id,
-                CityId = registerDto.CityId,
-                Address = registerDto.Address,
-                IsPrimary = true, // Primera dirección es primaria
-                CreatedAt = DateTime.UtcNow.ToUniversalTime(),
-            };
+                var academicProfile = new UserAcademicProfile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
+                    InstitutionId = profileDto.InstitutionId,
+                    EducationLevel = profileDto.EducationLevel,
+                    CurrentSemester = profileDto.CurrentSemester,
+                    CurrentGrade = profileDto.CurrentGrade,
+                    GraduationYear = profileDto.GraduationYear,
+                    StudyArea = profileDto.StudyArea,
+                    AcademicStatus = profileDto.AcademicStatus,
+                    CreatedAt = DateTime.UtcNow
+                };
+                user.AcademicProfiles.Add(academicProfile);
+            }
 
-            // 9. Agregar relaciones
-            user.AcademicProfiles.Add(academicProfile);
-            user.Addresses.Add(address);
+            // =====================
+            // CREAR DIRECCIONES
+            // =====================
 
-            // 10. Guardar en base de datos
+            // 10. Crear direcciones desde la lista del DTO
+            foreach (var addressDto in registerDto.UserAddresses)
+            {
+                // Validar que la ciudad existe
+                var city = await _locationRepository.GetCityByIdAsync(addressDto.CityId);
+                if (city == null)
+                    throw new InvalidOperationException($"Ciudad con ID {addressDto.CityId} no encontrada");
+
+                var address = new UserAddress
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
+                    CityId = addressDto.CityId,
+                    Address = addressDto.Address,
+                    IsPrimary = addressDto.IsPrimary,
+                    CreatedAt = DateTime.UtcNow
+                };
+                user.Addresses.Add(address);
+            }
+
+            // Validar que haya al menos una dirección primaria si hay direcciones
+            if (registerDto.UserAddresses.Any() &&
+                !registerDto.UserAddresses.Any(a => a.IsPrimary))
+            {
+                // Si no hay dirección primaria, marcar la primera como primaria
+                user.Addresses.First().IsPrimary = true;
+            }
+            // =====================
+            // GUARDAR EN BASE DE DATOS
+            // =====================
+
+            // 11. Guardar en base de datos
             var createdUser = await _userRepository.CreateAsync(user);
 
-            // 11. Generar tokens
+            // =====================
+            // GENERAR TOKENS
+            // =====================
+
+            // 12. Generar tokens
             var token = GenerateJwtToken(createdUser);
             var refreshToken = GenerateRefreshToken();
 
-            _logger.LogInformation("Usuario registrado exitosamente: {Email}", createdUser.Email);
+            _logger.LogInformation(
+                "Usuario registrado exitosamente: {Email} con roles: {Roles}",
+                createdUser.Email,
+                string.Join(", ", roles.Select(r => r.Name))
+            );
 
-            // 12. Retornar respuesta
+            // =====================
+            // RETORNAR RESPUESTA
+            // =====================
+
+            // 13. Retornar respuesta
             return new AuthResponseDto
             {
                 Token = token,
@@ -154,6 +247,177 @@ namespace LinaTask.Application.Services.Auth
                 Expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
                 User = MapToUserDto(createdUser)
             };
+        }
+
+        // =====================================================
+        // MÉTODOS DE VALIDACIÓN PRIVADOS
+        // =====================================================
+
+        /// <summary>
+        /// Valida que no existan perfiles académicos duplicados para el mismo rol
+        /// </summary>
+        private void ValidateNoDuplicateProfiles(RegisterDto registerDto)
+        {
+            var duplicateRoles = registerDto.AcademicProfiles
+                .GroupBy(p => p.RoleId)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicateRoles.Any())
+            {
+                throw new InvalidOperationException(
+                    "No puedes tener múltiples perfiles académicos para el mismo rol"
+                );
+            }
+        }
+
+        /// <summary>
+        /// Valida que los roles que requieren perfil académico lo tengan
+        /// </summary>
+        private async Task ValidateAcademicProfiles(RegisterDto registerDto, List<Role> roles)
+        {
+            // Roles que requieren perfil académico obligatorio
+            var rolesRequiringProfile = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "student",
+                    "teacher"
+                };
+
+            // Verificar cada rol seleccionado
+            foreach (var role in roles)
+            {
+                // Si el rol requiere perfil académico
+                if (rolesRequiringProfile.Contains(role.Name))
+                {
+                    // Verificar que exista un perfil para este rol
+                    var hasProfile = registerDto.AcademicProfiles
+                        .Any(p => p.RoleId == role.Id);
+
+                    if (!hasProfile)
+                    {
+                        throw new InvalidOperationException(
+                            $"El rol '{role.Name}' requiere un perfil académico completo"
+                        );
+                    }
+
+                    // Obtener el perfil para validaciones adicionales
+                    var profile = registerDto.AcademicProfiles
+                        .First(p => p.RoleId == role.Id);
+
+                    // Validaciones específicas según el nivel educativo
+                    ValidateEducationLevelFields(profile, role.Name);
+                }
+            }
+
+            // Validar que no haya perfiles para roles que no fueron seleccionados
+            var selectedRoleIds = roles.Select(r => r.Id).ToHashSet();
+            var profilesWithoutRole = registerDto.AcademicProfiles
+                .Where(p => !selectedRoleIds.Contains(p.RoleId))
+                .ToList();
+
+            if (profilesWithoutRole.Any())
+            {
+                throw new InvalidOperationException(
+                    "Hay perfiles académicos para roles que no fueron seleccionados"
+                );
+            }
+        }
+
+        /// <summary>
+        /// Valida que los campos específicos del nivel educativo estén correctos
+        /// </summary>
+        private void ValidateEducationLevelFields(AcademicProfileDto profile, string roleName)
+        {
+            var educationLevel = profile.EducationLevel.ToLower();
+
+            // Niveles que requieren grado (primaria y secundaria)
+            var levelsRequiringGrade = new HashSet<string> { "primaria", "secundaria" };
+
+            // Niveles que requieren semestre y área de estudio
+            var levelsRequiringSemester = new HashSet<string>
+                {
+                    "bachillerato",
+                    "universidad",
+                    "tecnica",
+                    "tecnologica",
+                    "especializacion",
+                    "maestria",
+                    "doctorado"
+                };
+
+            if (levelsRequiringGrade.Contains(educationLevel))
+            {
+                // Primaria y Secundaria requieren grado
+                if (string.IsNullOrWhiteSpace(profile.CurrentGrade))
+                {
+                    throw new InvalidOperationException(
+                        $"El nivel '{profile.EducationLevel}' requiere especificar el grado actual"
+                    );
+                }
+
+                // Validar que no tengan semestre ni área de estudio
+                if (profile.CurrentSemester.HasValue || !string.IsNullOrWhiteSpace(profile.StudyArea))
+                {
+                    throw new InvalidOperationException(
+                        $"El nivel '{profile.EducationLevel}' no debe tener semestre ni área de estudio"
+                    );
+                }
+            }
+            else if (levelsRequiringSemester.Contains(educationLevel))
+            {
+                // Educación superior requiere semestre y área de estudio
+                if (!profile.CurrentSemester.HasValue || profile.CurrentSemester <= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"El nivel '{profile.EducationLevel}' requiere especificar el semestre actual (mayor a 0)"
+                    );
+                }
+
+                if (string.IsNullOrWhiteSpace(profile.StudyArea))
+                {
+                    throw new InvalidOperationException(
+                        $"El nivel '{profile.EducationLevel}' requiere especificar el área de estudio"
+                    );
+                }
+
+                // Validar que no tengan grado
+                if (!string.IsNullOrWhiteSpace(profile.CurrentGrade))
+                {
+                    throw new InvalidOperationException(
+                        $"El nivel '{profile.EducationLevel}' no debe tener grado escolar"
+                    );
+                }
+
+                // Validar rango de semestre razonable
+                if (profile.CurrentSemester > 20)
+                {
+                    throw new InvalidOperationException(
+                        "El semestre no puede ser mayor a 20"
+                    );
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Nivel educativo '{profile.EducationLevel}' no reconocido"
+                );
+            }
+
+            // Validar estado académico
+            var validStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "activo",
+                    "graduado",
+                    "inactivo"
+                };
+
+            if (!validStatuses.Contains(profile.AcademicStatus))
+            {
+                throw new InvalidOperationException(
+                    $"Estado académico '{profile.AcademicStatus}' no válido. Valores permitidos: activo, graduado, inactivo"
+                );
+            }
         }
 
         public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto refreshTokenDto)
@@ -169,9 +433,7 @@ namespace LinaTask.Application.Services.Auth
             if (user == null)
                 throw new UnauthorizedAccessException("User not found");
 
-            // Aquí deberías validar el refresh token contra tu base de datos
-            // Por simplicidad, generamos nuevos tokens
-
+            // Generar nuevos tokens
             var newToken = GenerateJwtToken(user);
             var newRefreshToken = GenerateRefreshToken();
 
@@ -196,14 +458,33 @@ namespace LinaTask.Application.Services.Auth
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.Name),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
+
+            // Agregar claims de roles
+            if (user.UserRoles != null && user.UserRoles.Any())
+            {
+                foreach (var userRole in user.UserRoles)
+                {
+                    if (userRole.Role != null)
+                    {
+                        claims.Add(new Claim(ClaimTypes.Role, userRole.Role.Name));
+                    }
+                }
+            }
+
+            // ===== NUEVO: Agregar claims de permisos =====
+            var permissions = GetUserPermissions(user.Id).Result;
+            foreach (var permission in permissions)
+            {
+                claims.Add(new Claim("permission", permission.Code));
+            }
+            // ==============================================
 
             var token = new JwtSecurityToken(
                 issuer: _jwtSettings.Issuer,
@@ -214,6 +495,12 @@ namespace LinaTask.Application.Services.Auth
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        // Método auxiliar para obtener permisos del usuario
+        private async Task<IEnumerable<Permission>> GetUserPermissions(Guid userId)
+        {
+            return await _permissionRepository.GetPermissionsByUserIdAsync(userId);
         }
 
         private string GenerateRefreshToken()
@@ -252,13 +539,22 @@ namespace LinaTask.Application.Services.Auth
                 Id = user.Id,
                 Name = user.Name,
                 Email = user.Email,
-                Role = user.Role,
                 Rating = user.Rating,
                 CreatedAt = user.CreatedAt,
                 IsActive = user.IsActive,
                 ProfilePhoto = user.ProfilePhoto,
                 PhoneNumber = user.PhoneNumber,
                 BirthDate = user.BirthDate,
+
+                // Mapear roles
+                UserRoles = user.UserRoles?.Select(ur => new UserRoleDto
+                {
+                    RoleId = ur.RoleId,
+                    RoleName = ur.Role?.Name ?? "",
+                    RoleDescription = ur.Role?.Description ?? ""
+                }).ToList() ?? new List<UserRoleDto>(),
+
+                // Mapear perfiles académicos
                 AcademicProfiles = user.AcademicProfiles.Select(ap => new UserAcademicProfileDto
                 {
                     Id = ap.Id,
@@ -272,6 +568,8 @@ namespace LinaTask.Application.Services.Auth
                     AcademicStatus = ap.AcademicStatus,
                     CreatedAt = ap.CreatedAt
                 }).ToList(),
+
+                // Mapear direcciones
                 Addresses = user.Addresses.Select(a => new UserAddressDto
                 {
                     Id = a.Id,

@@ -2,6 +2,7 @@
 using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 
 namespace LinaTask.Application.Services
 {
@@ -49,7 +50,7 @@ namespace LinaTask.Application.Services
         {
             // Validar que el profesor existe y es profesor
             var teacher = await _userRepository.GetByIdAsync(createDto.TeacherId);
-            if (teacher == null || teacher.Role != "teacher")
+            if (teacher == null || !teacher.UserRoles.Any(ur => ur.Role.Name == "teacher"))
                 throw new InvalidOperationException("Invalid teacher ID");
 
             // Validar que la materia existe

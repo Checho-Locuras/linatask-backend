@@ -1,7 +1,9 @@
 ﻿using LinaTask.Application.Services.Interfaces;
+using LinaTask.Domain.Common.Utils;
 using LinaTask.Domain.DTOs;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
 
 namespace LinaTask.Application.Services.Auth
@@ -12,18 +14,22 @@ namespace LinaTask.Application.Services.Auth
         private readonly IPasswordResetTokenRepository _tokenRepository;
         private readonly IOtpService _otpService;
         private readonly IEmailService _emailService;
+        private readonly ISmsService _smsService;
+
 
         public PasswordResetService(
             IUserRepository userRepository,
             IPasswordResetTokenRepository tokenRepository,
             IOtpService otpService,
             IEmailService emailService,
-            IPasswordHasher<User> passwordHasher)
+            IPasswordHasher<User> passwordHasher,
+            ISmsService smsService)
         {
             _userRepository = userRepository;
             _tokenRepository = tokenRepository;
             _otpService = otpService;
             _emailService = emailService;
+            _smsService = smsService;
         }
 
         public async Task<bool> RequestPasswordResetAsync(RequestPasswordResetDto request, string ipAddress, string userAgent)
@@ -39,10 +45,11 @@ namespace LinaTask.Application.Services.Auth
             }
             else if (request.DeliveryMethod == "sms")
             {
-                // Implementar búsqueda por teléfono
-                // user = await _userRepository.GetByPhoneAsync(request.EmailOrPhone);
-                // deliveryDestination = user?.PhoneNumber ?? "";
-                throw new NotImplementedException("El envío por SMS aún no está implementado");
+                var normalizedPhone =
+                    PhoneHelper.NormalizeColombianPhone(request.EmailOrPhone);
+
+                user = await _userRepository.GetByPhoneAsync(normalizedPhone);
+                deliveryDestination = normalizedPhone;
             }
 
             if (user == null)
@@ -79,8 +86,7 @@ namespace LinaTask.Application.Services.Auth
             }
             else if (request.DeliveryMethod == "sms")
             {
-                // Implementar envío por SMS
-                // await _smsService.SendPasswordResetSmsAsync(deliveryDestination, otpCode);
+                await _smsService.SendPasswordResetSmsAsync(deliveryDestination, otpCode);
             }
 
             return true;

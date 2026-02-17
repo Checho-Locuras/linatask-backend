@@ -1,3 +1,4 @@
+using LinaTask.Api.Authorization;
 using LinaTask.Application.Services;
 using LinaTask.Application.Services.Auth;
 using LinaTask.Application.Services.Interfaces;
@@ -6,6 +7,7 @@ using LinaTask.Domain.Models;
 using LinaTask.Infrastructure.DataBaseContext;
 using LinaTask.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -44,9 +46,17 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// Startup.cs o Program.cs
+var connectionString = builder.Configuration["ConnectionStrings:PostgreSQL"];
+Console.WriteLine($"Connection String: {connectionString?.Substring(0, 20)}...");
+
 builder.Services.AddAuthorization();
 
 // Registrar TODOS los Repositorios
+builder.Services.AddScoped<IRoleRepository, RoleRepository>();
+builder.Services.AddScoped<ISystemParameterRepository, SystemParameterRepository>();
+builder.Services.AddScoped<ILocationRepository, LocationRepository>();
+builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<IOfferRepository, OfferRepository>();
@@ -55,11 +65,14 @@ builder.Services.AddScoped<ITeacherSubjectRepository, TeacherSubjectRepository>(
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<ITutoringSessionRepository, TutoringSessionRepository>();
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
-builder.Services.AddScoped<ILocationRepository, LocationRepository>();
+builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
+builder.Services.AddScoped<IMenuRepository, MenuRepository>();
 
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // Registrar TODOS los Servicios
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
@@ -71,8 +84,13 @@ builder.Services.AddScoped<ITutoringSessionService, TutoringSessionService>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<ILocationRepository, LocationRepository>();
 builder.Services.AddScoped<ILocationService, LocationService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<ISystemParameterService, SystemParameterService>();
+builder.Services.AddScoped<ISmsService, SmsService>();
+builder.Services.AddScoped<IMenuService, MenuService>();
+
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 
 
 // Configurar Controllers

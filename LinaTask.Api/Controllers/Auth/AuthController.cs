@@ -1,5 +1,6 @@
-﻿using global::LinaTask.Application.Services.Interfaces;
-using global::LinaTask.Domain.Models.Login;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.Services.Interfaces;
+using LinaTask.Domain.Models.Login;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -19,9 +20,6 @@ namespace LinaTask.Api.Controllers.Auth
             _logger = logger;
         }
 
-        /// <summary>
-        /// Iniciar sesión
-        /// </summary>
         [HttpPost("login")]
         [AllowAnonymous]
         public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto loginDto)
@@ -42,9 +40,6 @@ namespace LinaTask.Api.Controllers.Auth
             }
         }
 
-        /// <summary>
-        /// Registrar nuevo usuario
-        /// </summary>
         [HttpPost("register")]
         [AllowAnonymous]
         public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto registerDto)
@@ -65,9 +60,6 @@ namespace LinaTask.Api.Controllers.Auth
             }
         }
 
-        /// <summary>
-        /// Refrescar token
-        /// </summary>
         [HttpPost("refresh")]
         [AllowAnonymous]
         public async Task<ActionResult<AuthResponseDto>> Refresh([FromBody] RefreshTokenDto refreshTokenDto)
@@ -88,11 +80,8 @@ namespace LinaTask.Api.Controllers.Auth
             }
         }
 
-        /// <summary>
-        /// Cerrar sesión (revocar token)
-        /// </summary>
         [HttpPost("logout")]
-        [Authorize]
+        [Authorize] // Solo necesita estar autenticado
         public async Task<IActionResult> Logout()
         {
             try
@@ -111,11 +100,8 @@ namespace LinaTask.Api.Controllers.Auth
             }
         }
 
-        /// <summary>
-        /// Obtener información del usuario autenticado
-        /// </summary>
         [HttpGet("me")]
-        [Authorize]
+        [Authorize] // Solo necesita estar autenticado
         public IActionResult GetCurrentUser()
         {
             try
@@ -123,14 +109,16 @@ namespace LinaTask.Api.Controllers.Auth
                 var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 var userName = User.FindFirst(ClaimTypes.Name)?.Value;
                 var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
-                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+                var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                var permissions = User.FindAll("permission").Select(c => c.Value).ToList();
 
                 return Ok(new
                 {
                     id = userId,
                     name = userName,
                     email = userEmail,
-                    role = userRole
+                    roles = userRoles,
+                    permissions = permissions
                 });
             }
             catch (Exception ex)

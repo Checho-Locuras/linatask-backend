@@ -1,11 +1,14 @@
-﻿using LinaTask.Application.Services.Interfaces;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -17,11 +20,8 @@ namespace LinaTask.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Obtiene todos los usuarios
-        /// </summary>
         [HttpGet("getAllUsers")]
-        [ProducesResponseType(typeof(IEnumerable<UserDto>), StatusCodes.Status200OK)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAllUsers()
         {
             try
@@ -36,12 +36,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un usuario por ID
-        /// </summary>
         [HttpGet("getUserById/{id:guid}")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<UserDto>> GetUserById(Guid id)
         {
             try
@@ -59,12 +55,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un usuario por email
-        /// </summary>
         [HttpGet("getUserByEmail/{email}")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<UserDto>> GetUserByEmail(string email)
         {
             try
@@ -82,12 +74,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea un nuevo usuario
-        /// </summary>
         [HttpPost("createUser")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [PermissionAuthorize("USER.CREATE")]
         public async Task<ActionResult<UserDto>> CreateUser([FromBody] CreateUserDto createUserDto)
         {
             try
@@ -102,12 +90,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza un usuario existente
-        /// </summary>
         [HttpPut("updateUser/{id:guid}")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.EDIT")]
         public async Task<ActionResult<UserDto>> UpdateUser(Guid id, [FromBody] UpdateUserDto updateUserDto)
         {
             try
@@ -126,12 +110,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina un usuario
-        /// </summary>
         [HttpDelete("deleteUser/{id:guid}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.DELETE")]
         public async Task<IActionResult> DeleteUser(Guid id)
         {
             try
@@ -149,12 +129,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene todas las direcciones de un usuario
-        /// </summary>
         [HttpGet("{userId:guid}/addresses")]
-        [ProducesResponseType(typeof(IEnumerable<UserAddressDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<IEnumerable<UserAddressDto>>> GetUserAddresses(Guid userId)
         {
             try
@@ -173,13 +149,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Agrega una nueva dirección a un usuario
-        /// </summary>
         [HttpPost("{userId:guid}/addresses")]
-        [ProducesResponseType(typeof(UserAddressDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.EDIT")]
         public async Task<ActionResult<UserAddressDto>> AddAddress(
             Guid userId,
             [FromBody] CreateAddressDto createAddressDto)
@@ -207,12 +178,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza una dirección existente
-        /// </summary>
         [HttpPut("addresses/{addressId:guid}")]
-        [ProducesResponseType(typeof(UserAddressDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.EDIT")]
         public async Task<ActionResult<UserAddressDto>> UpdateAddress(
             Guid addressId,
             [FromBody] UpdateAddressDto updateAddressDto)
@@ -237,13 +204,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina una dirección
-        /// </summary>
         [HttpDelete("addresses/{addressId:guid}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [PermissionAuthorize("USER.EDIT")]
         public async Task<IActionResult> DeleteAddress(Guid addressId)
         {
             try
@@ -265,12 +227,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Marca una dirección como primaria
-        /// </summary>
         [HttpPut("addresses/{addressId:guid}/set-primary")]
-        [ProducesResponseType(typeof(UserAddressDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.EDIT")]
         public async Task<ActionResult<UserAddressDto>> SetPrimaryAddress(Guid addressId)
         {
             try

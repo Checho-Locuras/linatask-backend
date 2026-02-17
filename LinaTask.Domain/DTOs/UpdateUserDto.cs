@@ -21,5 +21,8 @@ namespace LinaTask.Domain.DTOs
 
         public string? ProfilePhoto { get; set; }
         public DateTime? BirthDate { get; set; }
+
+        // Nueva propiedad para roles
+        public IEnumerable<Guid>? RoleIds { get; set; }
     }
 }

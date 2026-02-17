@@ -2,6 +2,7 @@
 using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 
 namespace LinaTask.Application.Services
 {
@@ -43,7 +44,7 @@ namespace LinaTask.Application.Services
         public async Task<TaskDto> CreateTaskAsync(CreateTaskDto createTaskDto)
         {
             var student = await _userRepository.GetByIdAsync(createTaskDto.StudentId);
-            if (student == null || student.Role != "student")
+            if (student == null || !student.UserRoles.Any(ur => ur.Role.Name == "student"))
                 throw new InvalidOperationException("Invalid student ID");
 
             var task = new TaskU

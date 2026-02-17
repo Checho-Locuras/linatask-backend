@@ -22,7 +22,11 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<UserAcademicProfile> UserAcademicProfiles { get; set; }
         public DbSet<UserAddress> UserAddresses { get; set; }
-
+        public DbSet<UserRole> UserRoles { get; set; }
+        public DbSet<Role> Roles { get; set; }
+        public DbSet<SystemParameter> SystemParameters { get; set; }
+        public DbSet<Permission> Permissions { get; set; }
+        public DbSet<RolePermission> RolePermissions { get; set; }
 
         // =========================
         // LOCATION / UTILITIES
@@ -32,27 +36,48 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<City> Cities { get; set; }
         public DbSet<Institution> Institutions { get; set; }
 
+        // =========================
+        // MENU & PERMISSIONS
+        // =========================
+        public DbSet<Menu> Menus { get; set; }
+        public DbSet<MenuPermission> MenuPermissions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Configuración de User
+            // =========================
+            // USER
+            // =========================
             modelBuilder.Entity<User>(entity =>
             {
-                entity.HasIndex(u => u.Email).IsUnique();
-                entity.Property(u => u.Rating).HasPrecision(2, 1);
+                entity.ToTable("users");
+
+                entity.HasKey(u => u.Id);
+
+                entity.HasIndex(u => u.Email)
+                    .IsUnique();
+
+                entity.Property(u => u.Rating)
+                    .HasPrecision(2, 1);
+
                 entity.Property(u => u.BirthDate)
                     .HasColumnType("date");
 
-
-                // Configurar el nuevo campo
                 entity.Property(u => u.ProfilePhoto)
-                      .HasColumnType("text")
-                      .IsRequired(false); // Opcional, por si el usuario no tiene foto
+                    .HasColumnType("text")
+                    .IsRequired(false);
+
+                
+                entity.HasMany(u => u.UserRoles)
+                    .WithOne(ur => ur.User)
+                    .HasForeignKey(ur => ur.UserId);
             });
 
-            // Configuración de TeacherProfile
+
+            // =========================
+            // TEACHER PROFILE
+            // =========================
             modelBuilder.Entity<TeacherProfile>(entity =>
             {
                 entity.HasIndex(tp => tp.UserId).IsUnique();
@@ -61,7 +86,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
                       .HasForeignKey<TeacherProfile>(tp => tp.UserId);
             });
 
-            // Configuración de TaskU
+            // =========================
+            // TASK
+            // =========================
             modelBuilder.Entity<TaskU>(entity =>
             {
                 entity.HasOne(t => t.Student)
@@ -75,7 +102,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(t => t.Budget).HasColumnType("decimal(10,2)");
             });
 
-            // Configuración de Offer
+            // =========================
+            // OFFER
+            // =========================
             modelBuilder.Entity<Offer>(entity =>
             {
                 entity.HasOne(o => o.Task)
@@ -92,10 +121,12 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(o => o.Status).HasMaxLength(30);
             });
 
-            // Configuración de Payment
+            // =========================
+            // PAYMENT
+            // =========================
             modelBuilder.Entity<Payment>(entity =>
             {
-                entity.HasOne(p => p.TaskU)  // Cambiado de Task a TaskU
+                entity.HasOne(p => p.TaskU)
                       .WithMany(t => t.Payments)
                       .HasForeignKey(p => p.TaskId)
                       .OnDelete(DeleteBehavior.Restrict);
@@ -111,7 +142,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(p => p.Status).HasMaxLength(30);
             });
 
-            // Configuración de TutoringSession
+            // =========================
+            // TUTORING SESSION
+            // =========================
             modelBuilder.Entity<TutoringSession>(entity =>
             {
                 entity.HasOne(ts => ts.Student)
@@ -125,7 +158,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // Configuración de Subject
+            // =========================
+            // SUBJECT
+            // =========================
             modelBuilder.Entity<Subject>(entity =>
             {
                 entity.HasIndex(s => s.Name).IsUnique();
@@ -133,7 +168,9 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(s => s.Category).HasMaxLength(50);
             });
 
-            // Configuración de TeacherSubject
+            // =========================
+            // TEACHER SUBJECT
+            // =========================
             modelBuilder.Entity<TeacherSubject>(entity =>
             {
                 entity.HasIndex(ts => new { ts.TeacherId, ts.SubjectId }).IsUnique();
@@ -148,105 +185,54 @@ namespace LinaTask.Infrastructure.DataBaseContext
                       .HasForeignKey(ts => ts.SubjectId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                entity.Property(ts => ts.ExperienceYears)
-                      .HasColumnType("integer");
+                entity.Property(ts => ts.ExperienceYears).HasColumnType("integer");
             });
 
-            // Configuración de PasswordResetToken
+            // =========================
+            // PASSWORD RESET TOKEN
+            // =========================
             modelBuilder.Entity<PasswordResetToken>(entity =>
             {
                 entity.ToTable("password_reset_tokens");
-
                 entity.HasKey(prt => prt.Id);
 
                 entity.Property(prt => prt.Id)
                       .HasColumnName("id")
                       .HasDefaultValueSql("gen_random_uuid()");
+                entity.Property(prt => prt.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(prt => prt.Token).HasColumnName("token").HasMaxLength(6).IsRequired();
+                entity.Property(prt => prt.DeliveryMethod).HasColumnName("delivery_method").HasMaxLength(20).IsRequired();
+                entity.Property(prt => prt.DeliveryDestination).HasColumnName("delivery_destination").HasMaxLength(255).IsRequired();
+                entity.Property(prt => prt.ExpiresAt).HasColumnName("expires_at").IsRequired();
+                entity.Property(prt => prt.IsUsed).HasColumnName("is_used").HasDefaultValue(false);
+                entity.Property(prt => prt.UsedAt).HasColumnName("used_at");
+                entity.Property(prt => prt.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(prt => prt.IpAddress).HasColumnName("ip_address").HasMaxLength(45);
+                entity.Property(prt => prt.UserAgent).HasColumnName("user_agent").HasColumnType("text");
 
-                entity.Property(prt => prt.UserId)
-                      .HasColumnName("user_id")
-                      .IsRequired();
-
-                entity.Property(prt => prt.Token)
-                      .HasColumnName("token")
-                      .HasMaxLength(6)
-                      .IsRequired();
-
-                entity.Property(prt => prt.DeliveryMethod)
-                      .HasColumnName("delivery_method")
-                      .HasMaxLength(20)
-                      .IsRequired();
-
-                entity.Property(prt => prt.DeliveryDestination)
-                      .HasColumnName("delivery_destination")
-                      .HasMaxLength(255)
-                      .IsRequired();
-
-                entity.Property(prt => prt.ExpiresAt)
-                      .HasColumnName("expires_at")
-                      .IsRequired();
-
-                entity.Property(prt => prt.IsUsed)
-                      .HasColumnName("is_used")
-                      .HasDefaultValue(false);
-
-                entity.Property(prt => prt.UsedAt)
-                      .HasColumnName("used_at");
-
-                entity.Property(prt => prt.CreatedAt)
-                      .HasColumnName("created_at")
-                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                entity.Property(prt => prt.IpAddress)
-                      .HasColumnName("ip_address")
-                      .HasMaxLength(45);
-
-                entity.Property(prt => prt.UserAgent)
-                      .HasColumnName("user_agent")
-                      .HasColumnType("text");
-
-                // Relación con User
                 entity.HasOne(prt => prt.User)
                       .WithMany(u => u.PasswordResetTokens)
                       .HasForeignKey(prt => prt.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                // Índices
-                entity.HasIndex(prt => prt.UserId)
-                      .HasDatabaseName("idx_password_reset_tokens_user_id");
-
-                entity.HasIndex(prt => prt.Token)
-                      .HasDatabaseName("idx_password_reset_tokens_token");
-
-                entity.HasIndex(prt => prt.ExpiresAt)
-                      .HasDatabaseName("idx_password_reset_tokens_expires_at");
-
-                // CHECK constraint
-                entity.HasCheckConstraint(
-                    "check_delivery_method",
-                    "delivery_method IN ('email', 'sms')"
-                );
+                entity.HasIndex(prt => prt.UserId).HasDatabaseName("idx_password_reset_tokens_user_id");
+                entity.HasIndex(prt => prt.Token).HasDatabaseName("idx_password_reset_tokens_token");
+                entity.HasIndex(prt => prt.ExpiresAt).HasDatabaseName("idx_password_reset_tokens_expires_at");
+                entity.HasCheckConstraint("check_delivery_method", "delivery_method IN ('email', 'sms')");
             });
 
+            // =========================
+            // USER ACADEMIC PROFILE
+            // =========================
             modelBuilder.Entity<UserAcademicProfile>(entity =>
             {
                 entity.ToTable("user_academic_profiles");
-
                 entity.HasKey(uap => uap.Id);
 
-                entity.Property(uap => uap.EducationLevel)
-                      .HasMaxLength(50)
-                      .IsRequired();
-
-                entity.Property(uap => uap.AcademicStatus)
-                      .HasMaxLength(30)
-                      .IsRequired();
-
-                entity.Property(uap => uap.StudyArea)
-                      .HasMaxLength(100);
-
-                entity.Property(uap => uap.CreatedAt)
-                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(uap => uap.EducationLevel).HasMaxLength(50).IsRequired();
+                entity.Property(uap => uap.AcademicStatus).HasMaxLength(30).IsRequired();
+                entity.Property(uap => uap.StudyArea).HasMaxLength(100);
+                entity.Property(uap => uap.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.HasOne(uap => uap.User)
                       .WithMany(u => u.AcademicProfiles)
@@ -259,63 +245,37 @@ namespace LinaTask.Infrastructure.DataBaseContext
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // En el método OnModelCreating, agrega:
-
             // =========================
-            // USER ADDRESSES
+            // USER ADDRESS
             // =========================
             modelBuilder.Entity<UserAddress>(entity =>
             {
                 entity.ToTable("user_addresses");
-
                 entity.HasKey(ua => ua.Id);
 
-                entity.Property(ua => ua.Id)
-                      .HasColumnName("id");
+                entity.Property(ua => ua.Id).HasColumnName("id");
+                entity.Property(ua => ua.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(ua => ua.CityId).HasColumnName("city_id").IsRequired();
+                entity.Property(ua => ua.Address).HasColumnName("address").HasMaxLength(255).IsRequired();
+                entity.Property(ua => ua.IsPrimary).HasColumnName("is_primary").HasDefaultValue(false);
+                entity.Property(ua => ua.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                entity.Property(ua => ua.UserId)
-                      .HasColumnName("user_id")
-                      .IsRequired();
-
-                entity.Property(ua => ua.CityId)
-                      .HasColumnName("city_id")
-                      .IsRequired();
-
-                entity.Property(ua => ua.Address)
-                      .HasColumnName("address")
-                      .HasMaxLength(255)
-                      .IsRequired();
-
-                entity.Property(ua => ua.IsPrimary)
-                      .HasColumnName("is_primary")
-                      .HasDefaultValue(false);
-
-                entity.Property(ua => ua.CreatedAt)
-                      .HasColumnName("created_at")
-                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                // Relación con User
                 entity.HasOne(ua => ua.User)
                       .WithMany(u => u.Addresses)
                       .HasForeignKey(ua => ua.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                // Relación con City
                 entity.HasOne(ua => ua.City)
                       .WithMany()
                       .HasForeignKey(ua => ua.CityId)
                       .OnDelete(DeleteBehavior.Restrict);
 
-                // Índices
-                entity.HasIndex(ua => ua.UserId)
-                      .HasDatabaseName("idx_user_addresses_user_id");
-
-                entity.HasIndex(ua => new { ua.UserId, ua.IsPrimary })
-                      .HasDatabaseName("idx_user_addresses_user_primary");
+                entity.HasIndex(ua => ua.UserId).HasDatabaseName("idx_user_addresses_user_id");
+                entity.HasIndex(ua => new { ua.UserId, ua.IsPrimary }).HasDatabaseName("idx_user_addresses_user_primary");
             });
 
             // =========================
-            // COUNTRY → DEPARTMENT
+            // LOCATION HIERARCHY
             // =========================
             modelBuilder.Entity<Department>()
                 .HasOne(d => d.Country)
@@ -323,26 +283,219 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 .HasForeignKey(d => d.CountryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // =========================
-            // DEPARTMENT → CITY
-            // =========================
             modelBuilder.Entity<City>()
                 .HasOne(c => c.Department)
                 .WithMany(d => d.Cities)
                 .HasForeignKey(c => c.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // =========================
-            // CITY → INSTITUTION
-            // =========================
             modelBuilder.Entity<Institution>()
                 .HasOne(i => i.City)
                 .WithMany(c => c.Institutions)
                 .HasForeignKey(i => i.CityId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // =========================
+            // ROLE
+            // =========================
+            modelBuilder.Entity<Role>(entity =>
+            {
+                entity.ToTable("roles");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id");
+                entity.Property(r => r.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+                entity.Property(r => r.Description).HasColumnName("description").HasMaxLength(500);
+
+                entity.HasIndex(r => r.Name).IsUnique().HasDatabaseName("idx_roles_name");
+            });
+
+            // =========================
+            // USER ROLE (muchos a muchos User-Role)
+            // =========================
+            modelBuilder.Entity<UserRole>(entity =>
+            {
+                entity.ToTable("user_roles");
+
+                entity.HasKey(ur => new { ur.UserId, ur.RoleId });
+
+                entity.Property(ur => ur.UserId)
+                    .HasColumnName("user_id");
+
+                entity.Property(ur => ur.RoleId)
+                    .HasColumnName("role_id");
+
+                entity.HasOne(ur => ur.User)
+                    .WithMany(u => u.UserRoles)
+                    .HasForeignKey(ur => ur.UserId)
+                    .HasPrincipalKey(u => u.Id);
+
+                entity.HasOne(ur => ur.Role)
+                    .WithMany(r => r.UserRoles)
+                    .HasForeignKey(ur => ur.RoleId)
+                    .HasPrincipalKey(r => r.Id);
+            });
 
 
+            // =========================
+            // PERMISSION
+            // =========================
+            modelBuilder.Entity<Permission>(entity =>
+            {
+                entity.ToTable("permissions");
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.Code).HasColumnName("code").HasMaxLength(100).IsRequired();
+                entity.Property(p => p.Description).HasColumnName("description").HasMaxLength(500);
+                entity.Property(p => p.Module).HasColumnName("module").HasMaxLength(100);
+
+                entity.HasIndex(p => p.Code).IsUnique().HasDatabaseName("idx_permissions_code");
+            });
+
+            // =========================
+            // ROLE PERMISSION (muchos a muchos Role-Permission)
+            // =========================
+            modelBuilder.Entity<RolePermission>(entity =>
+            {
+                entity.ToTable("rolepermissions");
+                entity.HasKey(rp => new { rp.RoleId, rp.PermissionId });
+
+                entity.Property(rp => rp.RoleId).HasColumnName("roleid");
+                entity.Property(rp => rp.PermissionId).HasColumnName("permissionid");
+
+                entity.HasOne(rp => rp.Role)
+                      .WithMany(r => r.RolePermissions)
+                      .HasForeignKey(rp => rp.RoleId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(rp => rp.Permission)
+                      .WithMany(p => p.RolePermissions)
+                      .HasForeignKey(rp => rp.PermissionId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // =========================
+            // SYSTEM PARAMETER
+            // =========================
+            modelBuilder.Entity<SystemParameter>(entity =>
+            {
+                entity.ToTable("system_parameters");
+                entity.HasKey(sp => sp.Id);
+
+                entity.Property(sp => sp.Id).HasColumnName("id");
+                entity.Property(sp => sp.ParamKey).HasColumnName("param_key").HasMaxLength(100).IsRequired();
+                entity.Property(sp => sp.ParamValue).HasColumnName("param_value").HasMaxLength(500).IsRequired();
+                entity.Property(sp => sp.Description).HasColumnName("description").HasMaxLength(500);
+                entity.Property(sp => sp.DataType).HasColumnName("data_type").HasMaxLength(50).HasDefaultValue("string");
+                entity.Property(sp => sp.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(sp => sp.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(sp => sp.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(sp => sp.ParamKey).IsUnique().HasDatabaseName("idx_system_parameters_key");
+                entity.HasIndex(sp => sp.IsActive).HasDatabaseName("idx_system_parameters_active");
+                entity.HasIndex(sp => new { sp.ParamKey, sp.DataType }).HasDatabaseName("idx_system_parameters_key_type");
+            });
+
+            // =========================
+            // MENU
+            // =========================
+            modelBuilder.Entity<Menu>(entity =>
+            {
+                entity.ToTable("menus");
+
+                entity.HasKey(m => m.Id);
+
+                entity.Property(m => m.Id)
+                    .HasColumnName("id")
+                    .HasDefaultValueSql("gen_random_uuid()");
+
+                entity.Property(m => m.Name)
+                    .HasColumnName("name")
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(m => m.Icon)
+                    .HasColumnName("icon")
+                    .HasMaxLength(50);
+
+                entity.Property(m => m.Route)
+                    .HasColumnName("route")
+                    .HasMaxLength(200);
+
+                entity.Property(m => m.ParentId)
+                    .HasColumnName("parent_id");
+
+                entity.Property(m => m.Order)
+                    .HasColumnName("order")
+                    .IsRequired()
+                    .HasDefaultValue(0);
+
+                entity.Property(m => m.IsVisible)
+                    .HasColumnName("is_visible")
+                    .IsRequired()
+                    .HasDefaultValue(true);
+
+                entity.Property(m => m.CreatedAt)
+                    .HasColumnName("created_at")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.Property(m => m.UpdatedAt)
+                    .HasColumnName("updated_at")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                // Relación jerárquica (auto-referenciada)
+                entity.HasOne(m => m.Parent)
+                    .WithMany(m => m.Children)
+                    .HasForeignKey(m => m.ParentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                // Índices
+                entity.HasIndex(m => m.ParentId)
+                    .HasDatabaseName("idx_menus_parent_id");
+
+                entity.HasIndex(m => m.Order)
+                    .HasDatabaseName("idx_menus_order");
+
+                entity.HasIndex(m => m.IsVisible)
+                    .HasDatabaseName("idx_menus_is_visible");
+            });
+
+            // =========================
+            // MENU PERMISSION
+            // =========================
+            modelBuilder.Entity<MenuPermission>(entity =>
+            {
+                entity.ToTable("menu_permissions");
+
+                entity.HasKey(mp => new { mp.MenuId, mp.PermissionId });
+
+                entity.Property(mp => mp.MenuId)
+                    .HasColumnName("menu_id");
+
+                entity.Property(mp => mp.PermissionId)
+                    .HasColumnName("permission_id");
+
+                entity.Property(mp => mp.CreatedAt)
+                    .HasColumnName("created_at")
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                // Relación con Menu
+                entity.HasOne(mp => mp.Menu)
+                    .WithMany(m => m.MenuPermissions)
+                    .HasForeignKey(mp => mp.MenuId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Relación con Permission (existente)
+                entity.HasOne(mp => mp.Permission)
+                    .WithMany(p => p.MenuPermissions)
+                    .HasForeignKey(mp => mp.PermissionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Índices
+                entity.HasIndex(mp => mp.PermissionId)
+                    .HasDatabaseName("idx_menu_permissions_permission_id");
+            });
         }
     }
 }

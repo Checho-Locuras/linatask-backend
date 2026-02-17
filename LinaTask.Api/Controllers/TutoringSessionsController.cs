@@ -1,12 +1,14 @@
-﻿using LinaTask.Application.DTOs;
-using LinaTask.Application.Services;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TutoringSessionsController : ControllerBase
     {
         private readonly ITutoringSessionService _sessionService;
@@ -20,10 +22,8 @@ namespace LinaTask.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Obtiene todas las sesiones
-        /// </summary>
         [HttpGet("getAllTutoringSessions")]
+        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetAllTutoringSessions()
         {
             try
@@ -38,10 +38,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene una sesión por ID
-        /// </summary>
         [HttpGet("getTutoringSessionById/{id:guid}")]
+        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<TutoringSessionDto>> GetTutoringSessionById(Guid id)
         {
             try
@@ -59,10 +57,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene sesiones por estudiante
-        /// </summary>
         [HttpGet("getTutoringSessionsByStudentId/{studentId:guid}")]
+        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetTutoringSessionsByStudentId(Guid studentId)
         {
             try
@@ -77,10 +73,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene sesiones por profesor
-        /// </summary>
         [HttpGet("getTutoringSessionsByTeacherId/{teacherId:guid}")]
+        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetTutoringSessionsByTeacherId(Guid teacherId)
         {
             try
@@ -95,10 +89,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene sesiones por estado
-        /// </summary>
         [HttpGet("getTutoringSessionsByStatus/{status}")]
+        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetTutoringSessionsByStatus(string status)
         {
             try
@@ -113,10 +105,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene sesiones próximas (opcionalmente filtradas por usuario)
-        /// </summary>
         [HttpGet("getUpcomingTutoringSessions")]
+        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetUpcomingTutoringSessions([FromQuery] Guid? userId = null)
         {
             try
@@ -131,10 +121,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene estadísticas de sesiones
-        /// </summary>
         [HttpGet("getTutoringSessionStats")]
+        [PermissionAuthorize("SESSION.STATS")]
         public async Task<ActionResult<SessionStatsDto>> GetTutoringSessionStats([FromQuery] Guid? userId = null)
         {
             try
@@ -149,10 +137,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea una nueva sesión
-        /// </summary>
         [HttpPost("createTutoringSession")]
+        [PermissionAuthorize("SESSION.CREATE")]
         public async Task<ActionResult<TutoringSessionDto>> CreateTutoringSession([FromBody] CreateTutoringSessionDto createDto)
         {
             try
@@ -171,10 +157,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza una sesión
-        /// </summary>
         [HttpPut("updateTutoringSession/{id:guid}")]
+        [PermissionAuthorize("SESSION.EDIT")]
         public async Task<ActionResult<TutoringSessionDto>> UpdateTutoringSession(Guid id, [FromBody] UpdateTutoringSessionDto updateDto)
         {
             try
@@ -197,10 +181,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina una sesión
-        /// </summary>
         [HttpDelete("deleteTutoringSession/{id:guid}")]
+        [PermissionAuthorize("SESSION.DELETE")]
         public async Task<IActionResult> DeleteTutoringSession(Guid id)
         {
             try

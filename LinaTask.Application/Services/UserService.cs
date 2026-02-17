@@ -2,6 +2,7 @@
 using LinaTask.Domain.DTOs;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,11 +14,16 @@ namespace LinaTask.Application.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly ILocationRepository _locationRepository;
+        private readonly IRoleRepository _roleRepository;
 
-        public UserService(IUserRepository userRepository, ILocationRepository locationRepository)
+        public UserService(
+            IUserRepository userRepository,
+            ILocationRepository locationRepository,
+            IRoleRepository roleRepository)
         {
             _userRepository = userRepository;
             _locationRepository = locationRepository;
+            _roleRepository = roleRepository;
         }
 
         public async Task<IEnumerable<UserDto>> GetAllUsersAsync()
@@ -50,6 +56,19 @@ namespace LinaTask.Application.Services
             if (city == null)
                 throw new InvalidOperationException("Ciudad no encontrada");
 
+            // Validar roles
+            if (createUserDto.RoleIds == null || !createUserDto.RoleIds.Any())
+                throw new InvalidOperationException("El usuario debe tener al menos un rol");
+
+            var roles = new List<Role>();
+            foreach (var roleId in createUserDto.RoleIds)
+            {
+                var role = await _roleRepository.GetByIdAsync(roleId);
+                if (role == null)
+                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
+                roles.Add(role);
+            }
+
             // Crear usuario
             var user = new User
             {
@@ -57,13 +76,22 @@ namespace LinaTask.Application.Services
                 Name = createUserDto.Name,
                 Email = createUserDto.Email.ToLower(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(createUserDto.Password),
-                Role = createUserDto.Role.ToLower(),
                 PhoneNumber = createUserDto.PhoneNumber,
                 ProfilePhoto = createUserDto.ProfilePhoto,
                 BirthDate = createUserDto.BirthDate,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
+
+            // Asignar roles
+            foreach (var role in roles)
+            {
+                user.UserRoles.Add(new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = role.Id
+                });
+            }
 
             // Crear perfil académico
             var academicProfile = new UserAcademicProfile
@@ -130,6 +158,12 @@ namespace LinaTask.Application.Services
             // Si se proporciona una nueva contraseña, hashearla
             if (!string.IsNullOrEmpty(updateUserDto.Password))
                 user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateUserDto.Password);
+
+            // Actualizar roles si se proporcionan
+            if (updateUserDto.RoleIds != null && updateUserDto.RoleIds.Any())
+            {
+                await UpdateUserRolesAsync(user, updateUserDto.RoleIds);
+            }
 
             var updatedUser = await _userRepository.UpdateAsync(user);
             return MapToDto(updatedUser);
@@ -321,8 +355,96 @@ namespace LinaTask.Application.Services
         }
 
         // ==========================================
-        // MAPEO PRIVADO
+        // MÉTODOS PARA ROLES
         // ==========================================
+
+        public async Task<IEnumerable<UserRoleDto>> GetUserRolesAsync(Guid userId)
+        {
+            var userRoles = await _userRepository.GetUserRolesAsync(userId);
+
+            return userRoles.Select(ur => new UserRoleDto
+            {
+                RoleId = ur.RoleId,
+                RoleName = ur.Role.Name,
+                RoleDescription = ur.Role.Description
+            }).ToList();
+        }
+
+        public async Task<bool> UserHasRoleAsync(Guid userId, string roleName)
+        {
+            return await _userRepository.HasRoleAsync(userId, roleName);
+        }
+
+        public async Task<UserDto> AddRoleToUserAsync(Guid userId, Guid roleId)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+                throw new KeyNotFoundException($"Usuario con ID {userId} no encontrado");
+
+            var role = await _roleRepository.GetByIdAsync(roleId);
+            if (role == null)
+                throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
+
+            // Verificar si ya tiene el rol
+            if (user.UserRoles.Any(ur => ur.RoleId == roleId))
+                throw new InvalidOperationException("El usuario ya tiene este rol asignado");
+
+            user.UserRoles.Add(new UserRole
+            {
+                UserId = userId,
+                RoleId = roleId
+            });
+
+            await _userRepository.UpdateAsync(user);
+            return MapToDto(user);
+        }
+
+        public async Task<UserDto> RemoveRoleFromUserAsync(Guid userId, Guid roleId)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+                throw new KeyNotFoundException($"Usuario con ID {userId} no encontrado");
+
+            var userRole = user.UserRoles.FirstOrDefault(ur => ur.RoleId == roleId);
+            if (userRole == null)
+                throw new InvalidOperationException("El usuario no tiene este rol asignado");
+
+            // Verificar que no sea el último rol
+            if (user.UserRoles.Count == 1)
+                throw new InvalidOperationException("No se puede eliminar el único rol del usuario");
+
+            user.UserRoles.Remove(userRole);
+            await _userRepository.UpdateAsync(user);
+            return MapToDto(user);
+        }
+
+        // ==========================================
+        // MÉTODOS PRIVADOS
+        // ==========================================
+
+        private async Task UpdateUserRolesAsync(User user, IEnumerable<Guid> roleIds)
+        {
+            // Limpiar roles actuales
+            user.UserRoles.Clear();
+
+            // Agregar nuevos roles
+            foreach (var roleId in roleIds)
+            {
+                var role = await _roleRepository.GetByIdAsync(roleId);
+                if (role == null)
+                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
+
+                user.UserRoles.Add(new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = roleId
+                });
+            }
+
+            // Verificar que al menos quede un rol
+            if (!user.UserRoles.Any())
+                throw new InvalidOperationException("El usuario debe tener al menos un rol");
+        }
 
         private static UserDto MapToDto(User user)
         {
@@ -331,13 +453,20 @@ namespace LinaTask.Application.Services
                 Id = user.Id,
                 Name = user.Name,
                 Email = user.Email,
-                Role = user.Role,
                 Rating = user.Rating,
                 CreatedAt = user.CreatedAt,
                 IsActive = user.IsActive,
                 ProfilePhoto = user.ProfilePhoto,
                 PhoneNumber = user.PhoneNumber,
                 BirthDate = user.BirthDate,
+
+                // Mapear roles
+                UserRoles = user.UserRoles?.Select(ur => new UserRoleDto
+                {
+                    RoleId = ur.RoleId,
+                    RoleName = ur.Role?.Name ?? "",
+                    RoleDescription = ur.Role?.Description ?? ""
+                }).ToList() ?? new List<UserRoleDto>(),
 
                 // Mapear perfiles académicos
                 AcademicProfiles = user.AcademicProfiles?.Select(ap => new UserAcademicProfileDto

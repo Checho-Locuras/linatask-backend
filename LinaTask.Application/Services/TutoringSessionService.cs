@@ -2,6 +2,7 @@
 using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -61,12 +62,12 @@ namespace LinaTask.Application.Services
         {
             // Validar que el estudiante existe
             var student = await _userRepository.GetByIdAsync(createDto.StudentId);
-            if (student == null || student.Role != "student")
+            if (student == null || student.UserRoles.Any(ur => ur.Role.Name == "student"))
                 throw new InvalidOperationException("Invalid student ID");
 
             // Validar que el profesor existe
             var teacher = await _userRepository.GetByIdAsync(createDto.TeacherId);
-            if (teacher == null || teacher.Role != "teacher")
+            if (teacher == null || teacher.UserRoles.Any(ur => ur.Role.Name == "teacher"))
                 throw new InvalidOperationException("Invalid teacher ID");
 
             // Validar que la fecha de la sesión sea futura

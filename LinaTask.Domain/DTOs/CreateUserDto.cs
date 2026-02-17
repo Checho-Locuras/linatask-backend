@@ -22,7 +22,7 @@ namespace LinaTask.Domain.DTOs
         public string Password { get; set; } = string.Empty;
 
         [Required]
-        public string Role { get; set; } = string.Empty;
+        public IEnumerable<Guid> RoleIds { get; set; } = new List<Guid>();
 
         public string? ProfilePhoto { get; set; }
 

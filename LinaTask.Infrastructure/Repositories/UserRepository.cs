@@ -14,34 +14,12 @@ namespace LinaTask.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<IEnumerable<User>> GetAllAsync()
+        // Método auxiliar para cargar las relaciones comunes de User
+        private IQueryable<User> GetUserWithIncludes()
         {
-            try
-            {
-                return await _context.Users
-                    .Include(u => u.TeacherProfile)
-                    .Include(u => u.AcademicProfiles)
-                        .ThenInclude(ap => ap.Institution)
-                            .ThenInclude(i => i.City)
-                                .ThenInclude(c => c.Department)
-                                    .ThenInclude(d => d.Country)
-                    .Include(u => u.Addresses)
-                        .ThenInclude(a => a.City)
-                            .ThenInclude(c => c.Department)
-                                .ThenInclude(d => d.Country)
-                    .AsNoTracking()
-                    .ToListAsync();
-            }
-            catch (Exception e)
-            {
-                // Log the exception
-                throw; // Es mejor propagar la excepción que devolver null
-            }
-        }
-
-        public async Task<User?> GetByIdAsync(Guid id)
-        {
-            return await _context.Users
+            return _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                 .Include(u => u.TeacherProfile)
                 .Include(u => u.AcademicProfiles)
                     .ThenInclude(ap => ap.Institution)
@@ -51,56 +29,133 @@ namespace LinaTask.Infrastructure.Repositories
                 .Include(u => u.Addresses)
                     .ThenInclude(a => a.City)
                         .ThenInclude(c => c.Department)
-                            .ThenInclude(d => d.Country)
+                            .ThenInclude(d => d.Country);
+        }
+
+        // Método auxiliar para cargar relaciones básicas (sin todas las anidaciones)
+        private IQueryable<User> GetUserWithBasicIncludes()
+        {
+            return _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .Include(u => u.TeacherProfile)
+                .Include(u => u.AcademicProfiles)
+                    .ThenInclude(ap => ap.Institution)
+                .Include(u => u.Addresses)
+                    .ThenInclude(a => a.City);
+        }
+
+        public async Task<IEnumerable<User>> GetAllAsync()
+        {
+            try
+            {
+                return await GetUserWithIncludes()
+                    .AsNoTracking()
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al obtener todos los usuarios");
+                throw new ApplicationException($"Error al obtener todos los usuarios: {ex.Message}", ex);
+            }
+        }
+
+        public async Task<User?> GetByIdAsync(Guid id)
+        {
+            return await GetUserWithIncludes()
                 .FirstOrDefaultAsync(u => u.Id == id);
         }
 
         public async Task<User?> GetByEmailAsync(string email)
         {
-            return await _context.Users
-                .Include(u => u.TeacherProfile)
-                .Include(u => u.AcademicProfiles)
-                    .ThenInclude(ap => ap.Institution)
-                .Include(u => u.Addresses)
-                    .ThenInclude(a => a.City)
-                .FirstOrDefaultAsync(u => u.Email == email.ToLower());
+            try
+            {
+                if (string.IsNullOrWhiteSpace(email))
+                    throw new ArgumentException("El email no puede estar vacío", nameof(email));
+
+                return await GetUserWithBasicIncludes()
+                    .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+
+            }catch(Exception e)
+            {
+
+            }
+            return null;
         }
 
         public async Task<User?> GetByPhoneAsync(string phone)
         {
+            if (string.IsNullOrWhiteSpace(phone))
+                throw new ArgumentException("El teléfono no puede estar vacío", nameof(phone));
+
             return await _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
                 .Include(u => u.TeacherProfile)
                 .FirstOrDefaultAsync(u => u.PhoneNumber == phone);
         }
 
         public async Task<User> CreateAsync(User user)
         {
-            try {
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
+
+            try
+            {
+                user.CreatedAt = DateTime.UtcNow;
+
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
-            }catch (Exception ex)
-            {
 
+                // Recargar el usuario con todas las relaciones
+                return await GetByIdAsync(user.Id) ?? user;
             }
-            // Recargar el usuario con todas las relaciones
-            return await GetByIdAsync(user.Id) ?? user;
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al crear usuario");
+                throw new ApplicationException($"Error al crear el usuario: {ex.Message}", ex);
+            }
         }
 
         public async Task<User> UpdateAsync(User user)
         {
-            _context.Users.Update(user);
-            await _context.SaveChangesAsync();
-            return user;
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
+
+            try
+            {
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+                return user;
+            }
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al actualizar usuario");
+                throw new ApplicationException($"Error al actualizar el usuario: {ex.Message}", ex);
+            }
         }
 
         public async Task<bool> DeleteAsync(Guid id)
         {
             var user = await _context.Users.FindAsync(id);
-            if (user == null) return false;
+            if (user == null)
+                return false;
 
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-            return true;
+            try
+            {
+                _context.Users.Remove(user);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al eliminar usuario");
+                throw new ApplicationException($"Error al eliminar el usuario: {ex.Message}", ex);
+            }
         }
 
         public async Task<bool> ExistsAsync(Guid id)
@@ -108,11 +163,33 @@ namespace LinaTask.Infrastructure.Repositories
             return await _context.Users.AnyAsync(u => u.Id == id);
         }
 
+        public async Task<bool> ExistsByEmailAsync(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                throw new ArgumentException("El email no puede estar vacío", nameof(email));
+
+            return await _context.Users
+                .AnyAsync(u => u.Email.ToLower() == email.ToLower());
+        }
+
         public async Task<UserAddress> AddAddressAsync(UserAddress address)
         {
-            _context.UserAddresses.Add(address);
-            await _context.SaveChangesAsync();
-            return address;
+            if (address == null)
+                throw new ArgumentNullException(nameof(address));
+
+            try
+            {
+                address.CreatedAt = DateTime.UtcNow;
+                _context.UserAddresses.Add(address);
+                await _context.SaveChangesAsync();
+                return address;
+            }
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al agregar dirección");
+                throw new ApplicationException($"Error al agregar la dirección: {ex.Message}", ex);
+            }
         }
 
         public async Task<UserAddress?> GetAddressByIdAsync(Guid addressId)
@@ -138,9 +215,21 @@ namespace LinaTask.Infrastructure.Repositories
 
         public async Task<UserAddress> UpdateAddressAsync(UserAddress address)
         {
-            _context.UserAddresses.Update(address);
-            await _context.SaveChangesAsync();
-            return address;
+            if (address == null)
+                throw new ArgumentNullException(nameof(address));
+
+            try
+            {
+                _context.UserAddresses.Update(address);
+                await _context.SaveChangesAsync();
+                return address;
+            }
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al actualizar dirección");
+                throw new ApplicationException($"Error al actualizar la dirección: {ex.Message}", ex);
+            }
         }
 
         public async Task<bool> DeleteAddressAsync(Guid addressId)
@@ -149,9 +238,37 @@ namespace LinaTask.Infrastructure.Repositories
             if (address == null)
                 return false;
 
-            _context.UserAddresses.Remove(address);
-            await _context.SaveChangesAsync();
-            return true;
+            try
+            {
+                _context.UserAddresses.Remove(address);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Considera usar un logger aquí
+                // _logger.LogError(ex, "Error al eliminar dirección");
+                throw new ApplicationException($"Error al eliminar la dirección: {ex.Message}", ex);
+            }
+        }
+
+        // Métodos adicionales para manejar roles
+        public async Task<IEnumerable<UserRole>> GetUserRolesAsync(Guid userId)
+        {
+            return await _context.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .Include(ur => ur.Role)
+                .ToListAsync();
+        }
+
+        public async Task<bool> HasRoleAsync(Guid userId, string roleName)
+        {
+            if (string.IsNullOrWhiteSpace(roleName))
+                throw new ArgumentException("El nombre del rol no puede estar vacío", nameof(roleName));
+
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .AnyAsync(ur => ur.UserId == userId && ur.Role.Name.ToLower() == roleName.ToLower());
         }
     }
 }

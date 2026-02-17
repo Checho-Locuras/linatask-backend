@@ -1,12 +1,14 @@
-﻿using LinaTask.Application.DTOs;
-using LinaTask.Application.Services;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TeacherSubjectsController : ControllerBase
     {
         private readonly ITeacherSubjectService _teacherSubjectService;
@@ -21,6 +23,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getAllTeacherSubjects")]
+        [PermissionAuthorize("TEACHER_SUBJECT.VIEW")]
         public async Task<ActionResult<IEnumerable<TeacherSubjectDto>>> GetAllTeacherSubjects()
         {
             try
@@ -36,6 +39,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTeacherSubjectById/{id:guid}")]
+        [PermissionAuthorize("TEACHER_SUBJECT.VIEW")]
         public async Task<ActionResult<TeacherSubjectDto>> GetTeacherSubjectById(Guid id)
         {
             try
@@ -54,6 +58,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTeacherSubjectsByTeacherId/{teacherId:guid}")]
+        [PermissionAuthorize("TEACHER_SUBJECT.VIEW")]
         public async Task<ActionResult<IEnumerable<TeacherSubjectDto>>> GetTeacherSubjectsByTeacherId(Guid teacherId)
         {
             try
@@ -69,6 +74,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTeacherSubjectsBySubjectId/{subjectId:guid}")]
+        [PermissionAuthorize("TEACHER_SUBJECT.VIEW")]
         public async Task<ActionResult<IEnumerable<TeacherSubjectDto>>> GetTeacherSubjectsBySubjectId(Guid subjectId)
         {
             try
@@ -84,6 +90,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPost("createTeacherSubject")]
+        [PermissionAuthorize("TEACHER_SUBJECT.CREATE")]
         public async Task<ActionResult<TeacherSubjectDto>> CreateTeacherSubject([FromBody] CreateTeacherSubjectDto createDto)
         {
             try
@@ -103,6 +110,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPut("updateTeacherSubject/{id:guid}")]
+        [PermissionAuthorize("TEACHER_SUBJECT.EDIT")]
         public async Task<ActionResult<TeacherSubjectDto>> UpdateTeacherSubject(Guid id, [FromBody] UpdateTeacherSubjectDto updateDto)
         {
             try
@@ -122,6 +130,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpDelete("deleteTeacherSubject/{id:guid}")]
+        [PermissionAuthorize("TEACHER_SUBJECT.DELETE")]
         public async Task<IActionResult> DeleteTeacherSubject(Guid id)
         {
             try

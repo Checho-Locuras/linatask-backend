@@ -1,5 +1,6 @@
 ﻿using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers.Auth
@@ -16,11 +17,11 @@ namespace LinaTask.Api.Controllers.Auth
         }
 
         [HttpPost("requestResetPassword")]
+        [AllowAnonymous] // Público
         public async Task<IActionResult> RequestPasswordReset([FromBody] RequestPasswordResetDto request)
         {
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
-
             var result = await _passwordResetService.RequestPasswordResetAsync(request, ipAddress, userAgent);
 
             if (result)
@@ -36,6 +37,7 @@ namespace LinaTask.Api.Controllers.Auth
         }
 
         [HttpPost("verifyOtp")]
+        [AllowAnonymous] // Público
         public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto request)
         {
             var result = await _passwordResetService.VerifyOtpAsync(request);
@@ -49,6 +51,7 @@ namespace LinaTask.Api.Controllers.Auth
         }
 
         [HttpPost("resetPassword")]
+        [AllowAnonymous] // Público
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto request)
         {
             var result = await _passwordResetService.ResetPasswordAsync(request);

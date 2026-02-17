@@ -34,46 +34,23 @@ namespace LinaTask.Domain.Models.Login
         [MinLength(6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres")]
         public string Password { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "El rol es requerido")]
-        public string Role { get; set; } = "student";
+        // Lista de roles seleccionados (student, teacher, o ambos)
+        [Required(ErrorMessage = "Debes seleccionar al menos un rol")]
+        [MinLength(1, ErrorMessage = "Debes seleccionar al menos un rol")]
+        public List<Guid> RoleIds { get; set; } = new();
 
         public DateTime? BirthDate { get; set; }
-
         public string? ProfilePhoto { get; set; }
 
         // =====================
-        // PERFIL ACADÉMICO
+        // PERFILES ACADÉMICOS (MÚLTIPLES)
         // =====================
-        [Required(ErrorMessage = "La institución es requerida")]
-        public Guid InstitutionId { get; set; }
+        // Un perfil para estudiante, otro para profesor si selecciona ambos
+        [Required(ErrorMessage = "Debes proporcionar al menos un perfil académico")]
+        [MinLength(1, ErrorMessage = "Debes proporcionar al menos un perfil académico")]
+        public List<AcademicProfileDto> AcademicProfiles { get; set; } = new();
 
-        [Required(ErrorMessage = "El nivel educativo es requerido")]
-        [MaxLength(50)]
-        public string EducationLevel { get; set; } = string.Empty;
-
-        public int? CurrentSemester { get; set; }
-
-        [MaxLength(20)]
-        public string? CurrentGrade { get; set; }
-
-        public int? GraduationYear { get; set; }
-
-        [MaxLength(100)]
-        public string? StudyArea { get; set; }
-
-        [Required]
-        [MaxLength(30)]
-        public string AcademicStatus { get; set; } = "activo";
-
-        // =====================
-        // DIRECCIÓN
-        // =====================
-        [Required(ErrorMessage = "La ciudad es requerida")]
-        public Guid CityId { get; set; }
-
-        [Required(ErrorMessage = "La dirección es requerida")]
-        [MaxLength(255)]
-        public string Address { get; set; } = string.Empty;
+        public List<UserAddressDto> UserAddresses { get; set; } = new();
     }
 
     public class AuthResponseDto
