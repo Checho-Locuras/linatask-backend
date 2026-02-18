@@ -87,6 +87,7 @@ builder.Services.AddScoped<ITutoringSessionRepository, TutoringSessionRepository
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
 builder.Services.AddScoped<IMenuRepository, MenuRepository>();
+builder.Services.AddScoped<ITeacherAvailabilityRepository, TeacherAvailabilityRepository>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
@@ -110,6 +111,7 @@ builder.Services.AddScoped<ISystemParameterService, SystemParameterService>();
 builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<ITeacherAvailabilityService, TeacherAvailabilityService>();
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 

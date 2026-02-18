@@ -29,6 +29,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<SystemParameter> SystemParameters { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
+        public DbSet<TeacherAvailability> TeacherAvailabilities { get; set; }
 
         // =========================
         // LOCATION / UTILITIES
@@ -642,6 +643,29 @@ namespace LinaTask.Infrastructure.DataBaseContext
                     .HasFilter("is_read = false")
                     .HasDatabaseName("idx_messages_unread");
             });
+
+            //Sección para disponibilidad de un docente
+            modelBuilder.Entity<TeacherAvailability>(entity =>
+            {
+                entity.ToTable("teacher_availabilities");
+
+                entity.Property(e => e.Id).HasColumnName("id");
+                entity.Property(e => e.TeacherId).HasColumnName("teacher_id");
+                entity.Property(e => e.DayOfWeek).HasColumnName("day_of_week");
+                entity.Property(e => e.StartTime).HasColumnName("start_time");
+                entity.Property(e => e.EndTime).HasColumnName("end_time");
+                entity.Property(e => e.SlotDurationMinutes).HasColumnName("slot_duration_minutes");
+                entity.Property(e => e.IsActive).HasColumnName("is_active");
+                entity.Property(e => e.Notes).HasColumnName("notes");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(e => e.Teacher)
+                    .WithMany()
+                    .HasForeignKey(e => e.TeacherId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
         }
     }
 }
