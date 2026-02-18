@@ -1,4 +1,6 @@
-﻿using LinaTask.Domain.Models;
+﻿using LinaTask.Domain.Enums;
+using LinaTask.Domain.Models;
+using LinaTask.Domain.Models.Chat;
 using Microsoft.EntityFrameworkCore;
 
 namespace LinaTask.Infrastructure.DataBaseContext
@@ -40,6 +42,13 @@ namespace LinaTask.Infrastructure.DataBaseContext
         // MENU & PERMISSIONS
         // =========================
         public DbSet<Menu> Menus { get; set; }
+
+        // =========================
+        // CHAT
+        // =========================
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<Message> Messages { get; set; }
+
         public DbSet<MenuPermission> MenuPermissions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -495,6 +504,143 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 // Índices
                 entity.HasIndex(mp => mp.PermissionId)
                     .HasDatabaseName("idx_menu_permissions_permission_id");
+            });
+
+            ConfigureChatEntities(modelBuilder);
+        }
+
+        private static void ConfigureChatEntities(ModelBuilder modelBuilder)
+        {
+            // ─────────────────────────────────────────────────
+            // CONVERSATION
+            // ─────────────────────────────────────────────────
+            modelBuilder.Entity<Conversation>(entity =>
+            {
+                entity.ToTable("conversations");
+
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id)
+                    .HasColumnName("id")
+                    .HasDefaultValueSql("gen_random_uuid()");
+
+                entity.Property(c => c.UserOneId)
+                    .HasColumnName("user_one_id")
+                    .IsRequired();
+
+                entity.Property(c => c.UserTwoId)
+                    .HasColumnName("user_two_id")
+                    .IsRequired();
+
+                entity.Property(c => c.CreatedAt)
+                    .HasColumnName("created_at")
+                    .HasDefaultValueSql("NOW()");
+
+                entity.Property(c => c.UpdatedAt)
+                    .HasColumnName("updated_at")
+                    .HasDefaultValueSql("NOW()");
+
+                // Relaciones
+                entity.HasOne(c => c.UserOne)
+                    .WithMany()
+                    .HasForeignKey(c => c.UserOneId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(c => c.UserTwo)
+                    .WithMany()
+                    .HasForeignKey(c => c.UserTwoId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(c => c.Messages)
+                    .WithOne(m => m.Conversation)
+                    .HasForeignKey(m => m.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Constraint único: no permitir conversaciones duplicadas
+                // (user_one, user_two) o (user_two, user_one) son la misma conversación
+                entity.HasIndex(c => new { c.UserOneId, c.UserTwoId })
+                    .IsUnique()
+                    .HasDatabaseName("idx_conversation_unique");
+            });
+
+            // ─────────────────────────────────────────────────
+            // MESSAGE
+            // ─────────────────────────────────────────────────
+            modelBuilder.Entity<Message>(entity =>
+            {
+                entity.ToTable("messages");
+
+                entity.HasKey(m => m.Id);
+
+                entity.Property(m => m.Id)
+                    .HasColumnName("id")
+                    .HasDefaultValueSql("gen_random_uuid()");
+
+                entity.Property(m => m.ConversationId)
+                    .HasColumnName("conversation_id")
+                    .IsRequired();
+
+                entity.Property(m => m.SenderId)
+                    .HasColumnName("sender_id")
+                    .IsRequired();
+
+                entity.Property(m => m.Content)
+                    .HasColumnName("content")
+                    .HasColumnType("text");
+
+                entity.Property(m => m.MessageType)
+                    .HasConversion(
+                        v => v.ToString().ToLower(),
+                        v => Enum.Parse<MessageType>(v, true)
+                    )
+                    .HasColumnName("message_type")
+                    .HasMaxLength(20)
+                    .IsRequired();
+
+
+                entity.Property(m => m.FileUrl)
+                    .HasColumnName("file_url")
+                    .HasMaxLength(500);
+
+                entity.Property(m => m.FileName)
+                    .HasColumnName("file_name")
+                    .HasMaxLength(255);
+
+                entity.Property(m => m.FileSize)
+                    .HasColumnName("file_size");
+
+                entity.Property(m => m.IsRead)
+                    .HasColumnName("is_read")
+                    .HasDefaultValue(false);
+
+                entity.Property(m => m.ReadAt)
+                    .HasColumnName("read_at");
+
+                entity.Property(m => m.CreatedAt)
+                    .HasColumnName("created_at")
+                    .HasDefaultValueSql("NOW()");
+
+                // Relaciones
+                entity.HasOne(m => m.Conversation)
+                    .WithMany(c => c.Messages)
+                    .HasForeignKey(m => m.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(m => m.Sender)
+                    .WithMany()
+                    .HasForeignKey(m => m.SenderId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Índices para performance
+                entity.HasIndex(m => new { m.ConversationId, m.CreatedAt })
+                    .HasDatabaseName("idx_messages_conversation");
+
+                entity.HasIndex(m => m.SenderId)
+                    .HasDatabaseName("idx_messages_sender");
+
+                entity.HasIndex(m => new { m.ConversationId, m.IsRead })
+                    .HasFilter("is_read = false")
+                    .HasDatabaseName("idx_messages_unread");
             });
         }
     }

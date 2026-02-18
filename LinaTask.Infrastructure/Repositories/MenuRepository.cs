@@ -131,40 +131,85 @@ namespace LinaTask.Infrastructure.Repositories
 
         public async Task<IEnumerable<Menu>> GetMenusByRoleIdAsync(Guid roleId)
         {
-            // 1. Obtener todos los módulos a los que el rol tiene acceso
+            // 1. Obtener el nombre del rol
+            var role = await _context.Roles
+                .Where(r => r.Id == roleId)
+                .Select(r => r.Name)
+                .FirstOrDefaultAsync();
+
+            if (role == null) return Enumerable.Empty<Menu>();
+
+            // 2. Prefijo de ruta según el rol
+            var routePrefix = role switch
+            {
+                "SUPER_ADMIN" or "admin" => "/admin/",
+                "teacher" => "/teacher/",
+                "student" => "/student/",
+                _ => "/admin/"
+            };
+
+            // 3. Módulos del rol
             var roleModules = await _context.RolePermissions
                 .Where(rp => rp.RoleId == roleId)
                 .Select(rp => rp.Permission.Module)
                 .Distinct()
                 .ToListAsync();
 
-            // 2. Obtener todos los menús visibles
+            // 4. Mapeo explícito ruta → módulos requeridos
+            var menuModuleMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                // ── SHARED (un único menú para todos los roles) ──
+                { "/shared/dashboard",     new[] { "*" } },
+                { "/shared/chat",          new[] { "Chat" } },
+                { "/shared/profile",       new[] { "Profile" } },
+
+                // ── ADMIN ────────────────────────────────────────
+                { "/admin/users",          new[] { "Users" } },
+                { "/admin/students",       new[] { "Students", "Users" } },
+                { "/admin/teachers",       new[] { "Teachers", "Users" } },
+                { "/admin/tasks",          new[] { "Tasks" } },
+                { "/admin/offers",         new[] { "Offers" } },
+                { "/admin/payments",       new[] { "Payments" } },
+                { "/admin/subjects",       new[] { "Subjects", "Teachers" } },
+                { "/admin/sessions",       new[] { "Sessions" } },
+                { "/admin/reports",        new[] { "Reports", "Payments", "Sessions", "Tasks" } },
+                { "/admin/settings",       new[] { "*" } },
+
+                // ── STUDENT ──────────────────────────────────────
+                { "/student/schedule",     new[] { "Schedule" } },
+                { "/student/sessions",     new[] { "Sessions" } },
+                { "/student/tasks",        new[] { "Tasks" } },
+                { "/student/payments",     new[] { "Payments" } },
+
+                // ── TEACHER ──────────────────────────────────────
+                { "/teacher/subjects",     new[] { "Subjects" } },
+                { "/teacher/availability", new[] { "Availability" } },
+                { "/teacher/requests",     new[] { "Requests" } },
+                { "/teacher/sessions",     new[] { "Sessions" } },
+                { "/teacher/tasks",        new[] { "Tasks" } },
+                { "/teacher/earnings",     new[] { "Earnings" } },
+            };
+
+            // 5. Obtener menús del rol + los compartidos
             var allMenus = await _context.Menus
-                .Where(m => m.IsVisible)
+                .Where(m => m.IsVisible &&
+                            (m.Route.StartsWith(routePrefix) || m.Route.StartsWith("/shared/")))
                 .OrderBy(m => m.Order)
                 .ThenBy(m => m.Name)
                 .AsNoTracking()
                 .ToListAsync();
 
-            // 3. Filtrar menús según módulos
+            // 6. Filtrar según permisos
             var accessibleMenus = allMenus.Where(menu =>
             {
-                // Siempre mostrar Dashboard y Settings
-                if (menu.Route == "/admin/dashboard" || menu.Route == "/admin/settings")
+                if (!menuModuleMap.TryGetValue(menu.Route, out var requiredModules))
+                    return false;
+
+                if (requiredModules.Contains("*"))
                     return true;
 
-                // Extraer el nombre del módulo de la ruta
-                var routePart = menu.Route.Replace("/admin/", "").ToUpper();
-
-                // Remover 'S' final para singular/plural
-                var routeModule = routePart.TrimEnd('S');
-
-                // Verificar si el módulo del menú está en los permisos del rol
-                return roleModules.Any(module =>
-                    module.Equals(routeModule, StringComparison.OrdinalIgnoreCase) ||
-                    module.StartsWith(routeModule, StringComparison.OrdinalIgnoreCase) ||
-                    routeModule.StartsWith(module.Replace("_", ""), StringComparison.OrdinalIgnoreCase)
-                );
+                return requiredModules.Any(required =>
+                    roleModules.Contains(required, StringComparer.OrdinalIgnoreCase));
             }).ToList();
 
             return accessibleMenus;

@@ -73,180 +73,186 @@ namespace LinaTask.Application.Services.Auth
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
         {
-            // =====================
-            // VALIDACIONES PREVIAS
-            // =====================
+            try {
+                // =====================
+                // VALIDACIONES PREVIAS
+                // =====================
 
-            // 1. Verificar si el email ya existe
-            var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
-            if (existingUser != null)
-                throw new InvalidOperationException("El email ya está registrado");
+                // 1. Verificar si el email ya existe
+                var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
+                if (existingUser != null)
+                    throw new InvalidOperationException("El email ya está registrado");
 
-            // 2. Verificar si el teléfono ya existe
-            existingUser = await _userRepository.GetByPhoneAsync(registerDto.Phone);
-            if (existingUser != null)
-                throw new InvalidOperationException("El número de teléfono ya está registrado");
+                // 2. Verificar si el teléfono ya existe
+                existingUser = await _userRepository.GetByPhoneAsync(registerDto.Phone);
+                if (existingUser != null)
+                    throw new InvalidOperationException("El número de teléfono ya está registrado");
 
-            // 3. Validar que no haya perfiles duplicados para el mismo rol
-            ValidateNoDuplicateProfiles(registerDto);
+                // 3. Validar que no haya perfiles duplicados para el mismo rol
+                ValidateNoDuplicateProfiles(registerDto);
 
-            // =====================
-            // VALIDAR Y CARGAR ROLES
-            // =====================
+                // =====================
+                // VALIDAR Y CARGAR ROLES
+                // =====================
 
-            var roles = new List<Role>();
-            if (registerDto.RoleIds == null || !registerDto.RoleIds.Any())
-            {
-                throw new InvalidOperationException("Debes seleccionar al menos un rol");
-            }
-
-            foreach (var roleId in registerDto.RoleIds)
-            {
-                var role = await _roleRepository.GetByIdAsync(roleId);
-                if (role == null)
-                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
-                roles.Add(role);
-            }
-
-            // 4. Validar que los roles que requieren perfil académico lo tengan
-            await ValidateAcademicProfiles(registerDto, roles);
-
-            // =====================
-            // VALIDAR UBICACIÓN E INSTITUCIÓN
-            // =====================
-
-            // 6. Validar que todas las instituciones en los perfiles existen
-            var institutionIds = registerDto.AcademicProfiles
-                .Select(p => p.InstitutionId)
-                .Distinct()
-                .ToList();
-
-            foreach (var institutionId in institutionIds)
-            {
-                var institution = await _locationRepository.GetInstitutionByIdAsync(institutionId);
-                if (institution == null)
-                    throw new InvalidOperationException($"Institución con ID {institutionId} no encontrada");
-            }
-
-            // =====================
-            // CREAR USUARIO
-            // =====================
-
-            // 7. Crear nuevo usuario
-            var user = new User
-            {
-                Id = Guid.NewGuid(),
-                Name = registerDto.Name,
-                PhoneNumber = PhoneHelper.NormalizeColombianPhone(registerDto.Phone),
-                Email = registerDto.Email.ToLower(),
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
-                BirthDate = registerDto.BirthDate,
-                ProfilePhoto = registerDto.ProfilePhoto,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true
-            };
-
-            // =====================
-            // ASIGNAR ROLES
-            // =====================
-
-            // 8. Asignar roles al usuario
-            foreach (var role in roles)
-            {
-                user.UserRoles.Add(new UserRole
+                var roles = new List<Role>();
+                if (registerDto.RoleIds == null || !registerDto.RoleIds.Any())
                 {
-                    UserId = user.Id,
-                    RoleId = role.Id,
-                });
-            }
+                    throw new InvalidOperationException("Debes seleccionar al menos un rol");
+                }
 
-            // =====================
-            // CREAR PERFILES ACADÉMICOS
-            // =====================
+                foreach (var roleId in registerDto.RoleIds)
+                {
+                    var role = await _roleRepository.GetByIdAsync(roleId);
+                    if (role == null)
+                        throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
+                    roles.Add(role);
+                }
 
-            // 9. Crear perfiles académicos (uno por cada rol que lo requiera)
-            foreach (var profileDto in registerDto.AcademicProfiles)
-            {
-                var academicProfile = new UserAcademicProfile
+                // 4. Validar que los roles que requieren perfil académico lo tengan
+                await ValidateAcademicProfiles(registerDto, roles);
+
+                // =====================
+                // VALIDAR UBICACIÓN E INSTITUCIÓN
+                // =====================
+
+                // 6. Validar que todas las instituciones en los perfiles existen
+                var institutionIds = registerDto.AcademicProfiles
+                    .Select(p => p.InstitutionId)
+                    .Distinct()
+                    .ToList();
+
+                foreach (var institutionId in institutionIds)
+                {
+                    var institution = await _locationRepository.GetInstitutionByIdAsync(institutionId);
+                    if (institution == null)
+                        throw new InvalidOperationException($"Institución con ID {institutionId} no encontrada");
+                }
+
+                // =====================
+                // CREAR USUARIO
+                // =====================
+
+                // 7. Crear nuevo usuario
+                var user = new User
                 {
                     Id = Guid.NewGuid(),
-                    UserId = user.Id,
-                    InstitutionId = profileDto.InstitutionId,
-                    EducationLevel = profileDto.EducationLevel,
-                    CurrentSemester = profileDto.CurrentSemester,
-                    CurrentGrade = profileDto.CurrentGrade,
-                    GraduationYear = profileDto.GraduationYear,
-                    StudyArea = profileDto.StudyArea,
-                    AcademicStatus = profileDto.AcademicStatus,
-                    CreatedAt = DateTime.UtcNow
+                    Name = registerDto.Name,
+                    PhoneNumber = PhoneHelper.NormalizeColombianPhone(registerDto.Phone),
+                    Email = registerDto.Email.ToLower(),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
+                    BirthDate = registerDto.BirthDate,
+                    ProfilePhoto = registerDto.ProfilePhoto,
+                    CreatedAt = DateTime.UtcNow,
+                    IsActive = true
                 };
-                user.AcademicProfiles.Add(academicProfile);
-            }
 
-            // =====================
-            // CREAR DIRECCIONES
-            // =====================
+                // =====================
+                // ASIGNAR ROLES
+                // =====================
 
-            // 10. Crear direcciones desde la lista del DTO
-            foreach (var addressDto in registerDto.UserAddresses)
-            {
-                // Validar que la ciudad existe
-                var city = await _locationRepository.GetCityByIdAsync(addressDto.CityId);
-                if (city == null)
-                    throw new InvalidOperationException($"Ciudad con ID {addressDto.CityId} no encontrada");
-
-                var address = new UserAddress
+                // 8. Asignar roles al usuario
+                foreach (var role in roles)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = user.Id,
-                    CityId = addressDto.CityId,
-                    Address = addressDto.Address,
-                    IsPrimary = addressDto.IsPrimary,
-                    CreatedAt = DateTime.UtcNow
+                    user.UserRoles.Add(new UserRole
+                    {
+                        UserId = user.Id,
+                        RoleId = role.Id,
+                    });
+                }
+
+                // =====================
+                // CREAR PERFILES ACADÉMICOS
+                // =====================
+
+                // 9. Crear perfiles académicos (uno por cada rol que lo requiera)
+                foreach (var profileDto in registerDto.AcademicProfiles)
+                {
+                    var academicProfile = new UserAcademicProfile
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        InstitutionId = profileDto.InstitutionId,
+                        EducationLevel = profileDto.EducationLevel,
+                        CurrentSemester = profileDto.CurrentSemester,
+                        CurrentGrade = profileDto.CurrentGrade,
+                        GraduationYear = profileDto.GraduationYear,
+                        StudyArea = profileDto.StudyArea,
+                        AcademicStatus = profileDto.AcademicStatus,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    user.AcademicProfiles.Add(academicProfile);
+                }
+
+                // =====================
+                // CREAR DIRECCIONES
+                // =====================
+
+                // 10. Crear direcciones desde la lista del DTO
+                foreach (var addressDto in registerDto.UserAddresses)
+                {
+                    // Validar que la ciudad existe
+                    var city = await _locationRepository.GetCityByIdAsync(addressDto.CityId);
+                    if (city == null)
+                        throw new InvalidOperationException($"Ciudad con ID {addressDto.CityId} no encontrada");
+
+                    var address = new UserAddress
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        CityId = addressDto.CityId,
+                        Address = addressDto.Address,
+                        IsPrimary = addressDto.IsPrimary,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    user.Addresses.Add(address);
+                }
+
+                // Validar que haya al menos una dirección primaria si hay direcciones
+                if (registerDto.UserAddresses.Any() &&
+                    !registerDto.UserAddresses.Any(a => a.IsPrimary))
+                {
+                    // Si no hay dirección primaria, marcar la primera como primaria
+                    user.Addresses.First().IsPrimary = true;
+                }
+                // =====================
+                // GUARDAR EN BASE DE DATOS
+                // =====================
+
+                // 11. Guardar en base de datos
+                var createdUser = await _userRepository.CreateAsync(user);
+
+                // =====================
+                // GENERAR TOKENS
+                // =====================
+
+                // 12. Generar tokens
+                var token = GenerateJwtToken(createdUser);
+                var refreshToken = GenerateRefreshToken();
+
+                _logger.LogInformation(
+                    "Usuario registrado exitosamente: {Email} con roles: {Roles}",
+                    createdUser.Email,
+                    string.Join(", ", roles.Select(r => r.Name))
+                );
+
+                // =====================
+                // RETORNAR RESPUESTA
+                // =====================
+
+                // 13. Retornar respuesta
+                return new AuthResponseDto
+                {
+                    Token = token,
+                    RefreshToken = refreshToken,
+                    Expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
+                    User = MapToUserDto(createdUser)
                 };
-                user.Addresses.Add(address);
-            }
-
-            // Validar que haya al menos una dirección primaria si hay direcciones
-            if (registerDto.UserAddresses.Any() &&
-                !registerDto.UserAddresses.Any(a => a.IsPrimary))
+            } catch(Exception e)
             {
-                // Si no hay dirección primaria, marcar la primera como primaria
-                user.Addresses.First().IsPrimary = true;
+                return null;
             }
-            // =====================
-            // GUARDAR EN BASE DE DATOS
-            // =====================
-
-            // 11. Guardar en base de datos
-            var createdUser = await _userRepository.CreateAsync(user);
-
-            // =====================
-            // GENERAR TOKENS
-            // =====================
-
-            // 12. Generar tokens
-            var token = GenerateJwtToken(createdUser);
-            var refreshToken = GenerateRefreshToken();
-
-            _logger.LogInformation(
-                "Usuario registrado exitosamente: {Email} con roles: {Roles}",
-                createdUser.Email,
-                string.Join(", ", roles.Select(r => r.Name))
-            );
-
-            // =====================
-            // RETORNAR RESPUESTA
-            // =====================
-
-            // 13. Retornar respuesta
-            return new AuthResponseDto
-            {
-                Token = token,
-                RefreshToken = refreshToken,
-                Expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
-                User = MapToUserDto(createdUser)
-            };
+            
         }
 
         // =====================================================

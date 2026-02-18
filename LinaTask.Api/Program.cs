@@ -1,4 +1,6 @@
 using LinaTask.Api.Authorization;
+using LinaTask.Api.Hubs;
+using LinaTask.Aplication.Services;
 using LinaTask.Application.Services;
 using LinaTask.Application.Services.Auth;
 using LinaTask.Application.Services.Interfaces;
@@ -11,7 +13,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
 using Microsoft.OpenApi.Models;
 using System.Text;
 
@@ -42,7 +43,26 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings!.Issuer,
         ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.Zero,
+        NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+
+            var path = context.HttpContext.Request.Path;
+
+            if (!string.IsNullOrEmpty(accessToken) &&
+                path.StartsWithSegments("/hubs/chat"))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -89,12 +109,29 @@ builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<ISystemParameterService, SystemParameterService>();
 builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
+builder.Services.AddScoped<IChatService, ChatService>();
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddScoped<IFileUploadService, LocalFileUploadService>();
+}
+else
+{
+    builder.Services.AddScoped<IFileUploadService, AzureBlobFileUploadService>();
+}
 
 
 // Configurar Controllers
 builder.Services.AddControllers();
+
+//SignalR para chat
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB
+});
 
 // Configurar Swagger con JWT
 builder.Services.AddEndpointsApiExplorer();
@@ -138,9 +175,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.WithOrigins("http://localhost:4200")
+          .AllowAnyHeader()
+          .AllowAnyMethod()
+          .AllowCredentials();
+
     });
 });
 
@@ -159,10 +198,13 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 
+app.UseStaticFiles();
+
 // IMPORTANTE: El orden es crucial
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
