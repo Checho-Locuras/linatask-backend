@@ -31,6 +31,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<RolePermission> RolePermissions { get; set; }
         public DbSet<TeacherAvailability> TeacherAvailabilities { get; set; }
         public DbSet<SessionRating> SessionRatings { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         // =========================
         // LOCATION / UTILITIES
@@ -230,6 +231,68 @@ namespace LinaTask.Infrastructure.DataBaseContext
 
                 e.Property(r => r.Comment)
                  .HasMaxLength(1000);
+            });
+
+            // ── Notificaciones ────────────────────────────────────────
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.ToTable("notifications");
+
+                entity.Property(e => e.Id)
+                   .HasColumnName("id")
+                   .HasDefaultValueSql("gen_random_uuid()");
+
+                entity.Property(e => e.Id)
+                    .HasColumnName("id");
+
+                entity.Property(e => e.UserId)
+                    .HasColumnName("user_id")
+                    .IsRequired();
+
+                entity.Property(e => e.Title)
+                    .HasColumnName("title")
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                entity.Property(e => e.Message)
+                    .HasColumnName("message")
+                    .IsRequired();
+
+                entity.Property(e => e.Type)
+                    .HasColumnName("type")
+                    .HasMaxLength(50)
+                    .IsRequired()
+                    .HasDefaultValue(NotificationType.Info);
+
+                entity.Property(e => e.Category)
+                    .HasColumnName("category")
+                    .HasMaxLength(100)
+                    .IsRequired()
+                    .HasDefaultValue(NotificationCategory.General);
+
+                entity.Property(e => e.IsRead)
+                    .HasColumnName("is_read")
+                    .IsRequired()
+                    .HasDefaultValue(false);
+
+                entity.Property(e => e.ReadAt)
+                    .HasColumnName("read_at");
+
+                entity.Property(e => e.ReferenceId)
+                    .HasColumnName("reference_id");
+
+                entity.Property(e => e.ReferenceType)
+                    .HasColumnName("reference_type")
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.ActionUrl)
+                    .HasColumnName("action_url")
+                    .HasMaxLength(500);
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnName("created_at")
+                    .IsRequired()
+                    .HasDefaultValueSql("NOW()");
             });
 
             // =========================

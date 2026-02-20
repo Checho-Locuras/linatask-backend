@@ -58,7 +58,7 @@ builder.Services.AddAuthentication(options =>
             var path = context.HttpContext.Request.Path;
 
             if (!string.IsNullOrEmpty(accessToken) &&
-                path.StartsWithSegments("/hubs/chat"))
+                path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/notifications"))
             {
                 context.Token = accessToken;
             }
@@ -90,6 +90,7 @@ builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepo
 builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
 builder.Services.AddScoped<IMenuRepository, MenuRepository>();
 builder.Services.AddScoped<ITeacherAvailabilityRepository, TeacherAvailabilityRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
@@ -115,8 +116,9 @@ builder.Services.AddScoped<IMenuService, MenuService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ITeacherAvailabilityService, TeacherAvailabilityService>();
 builder.Services.AddHttpClient<IHmsVideoService, HmsVideoService>();
-builder.Services.AddScoped<ISessionNotificationService, SessionNotificationService>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -211,5 +213,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

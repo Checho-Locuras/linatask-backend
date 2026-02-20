@@ -24,7 +24,6 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getAllTutoringSessions")]
-        [PermissionAuthorize("SESSION.VIEW")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetAllTutoringSessions()
         {
             try
