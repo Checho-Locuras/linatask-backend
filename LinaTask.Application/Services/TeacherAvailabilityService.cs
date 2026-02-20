@@ -1,5 +1,6 @@
 ﻿using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using LinaTask.Domain.Enums;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
 
@@ -75,6 +76,20 @@ namespace LinaTask.Application.Services
 
         public async Task<IEnumerable<TeacherAvailabilityDto>> BulkSaveAsync(BulkSaveAvailabilityDto dto)
         {
+            foreach (var dayGroup in dto.Availabilities.GroupBy(a => a.DayOfWeek))
+            {
+                var blocks = dayGroup
+                    .Select(a => new { Start = TimeSpan.Parse(a.StartTime), End = TimeSpan.Parse(a.EndTime) })
+                    .OrderBy(b => b.Start)
+                    .ToList();
+
+                for (int i = 0; i < blocks.Count - 1; i++)
+                {
+                    if (blocks[i].End > blocks[i + 1].Start)
+                        throw new ArgumentException($"Los bloques de {dayGroup.Key} se están cruzando.");
+                }
+            }
+
             // Borrar todos los registros existentes del docente
             await _repo.DeleteByTeacherIdAsync(dto.TeacherId);
 
@@ -108,14 +123,12 @@ namespace LinaTask.Application.Services
 
         // ── Vista semanal con cruce de sesiones ───────────────
 
-        public async Task<TeacherWeeklyAvailabilityDto> GetWeeklyAvailabilityAsync(
-            Guid teacherId, DateTime weekStart)
+        public async Task<TeacherWeeklyAvailabilityDto> GetWeeklyAvailabilityAsync(Guid teacherId, DateTime weekStart)
         {
             // Normalizar al lunes de la semana
             var monday = weekStart.Date;
             while (monday.DayOfWeek != DayOfWeek.Monday)
                 monday = monday.AddDays(-1);
-
             var sunday = monday.AddDays(6);
 
             // Bloques de disponibilidad del docente
@@ -123,11 +136,13 @@ namespace LinaTask.Application.Services
                 .Where(b => b.IsActive)
                 .ToList();
 
-            // Sesiones del docente en esa semana (solo estados relevantes)
+            // Sesiones del docente en esa semana
+            // Ahora filtramos por StartTime en lugar de SessionDate,
+            // y comparamos contra el enum en lugar del string "Cancelled"
             var sessions = (await _sessionRepo.GetByTeacherIdAsync(teacherId))
-                .Where(s => s.SessionDate.Date >= monday
-                         && s.SessionDate.Date <= sunday
-                         && s.Status != "Cancelled")
+                .Where(s => s.StartTime.Date >= monday
+                         && s.StartTime.Date <= sunday
+                         && s.Status != SessionStatus.Cancelled)
                 .ToList();
 
             var result = new TeacherWeeklyAvailabilityDto
@@ -156,21 +171,19 @@ namespace LinaTask.Application.Services
 
                 foreach (var block in dayBlocks)
                 {
-                    // Generar slots según duración
                     var cursor = block.StartTime;
+
                     while (cursor + TimeSpan.FromMinutes(block.SlotDurationMinutes) <= block.EndTime)
                     {
                         var slotStart = cursor;
                         var slotEnd = cursor + TimeSpan.FromMinutes(block.SlotDurationMinutes);
 
-                        // ¿Hay sesión que colisiona con este slot?
+                        // Colisión: la sesión solapa con el slot si su StartTime < slotEnd
+                        // y su EndTime > slotStart — ahora usamos el EndTime real de la sesión
                         var collision = sessions.FirstOrDefault(s =>
-                        {
-                            var sTime = s.SessionDate.TimeOfDay;
-                            return s.SessionDate.Date == currentDate.Date
-                                && sTime < slotEnd
-                                && sTime + TimeSpan.FromMinutes(block.SlotDurationMinutes) > slotStart;
-                        });
+                            s.StartTime.Date == currentDate.Date
+                            && s.StartTime.TimeOfDay < slotEnd
+                            && s.EndTime.TimeOfDay > slotStart);
 
                         dayDto.Slots.Add(new AvailabilitySlotDto
                         {

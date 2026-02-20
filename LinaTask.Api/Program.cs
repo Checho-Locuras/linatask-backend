@@ -1,5 +1,6 @@
 using LinaTask.Api.Authorization;
 using LinaTask.Api.Hubs;
+using LinaTask.Api.Services;
 using LinaTask.Aplication.Services;
 using LinaTask.Application.Services;
 using LinaTask.Application.Services.Auth;
@@ -8,6 +9,7 @@ using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
 using LinaTask.Infrastructure.DataBaseContext;
 using LinaTask.Infrastructure.Repositories;
+using LinaTask.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -112,7 +114,8 @@ builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ITeacherAvailabilityService, TeacherAvailabilityService>();
-
+builder.Services.AddHttpClient<IHmsVideoService, HmsVideoService>();
+builder.Services.AddScoped<ISessionNotificationService, SessionNotificationService>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 
 if (builder.Environment.IsDevelopment())

@@ -1,6 +1,7 @@
 ﻿using LinaTask.Api.Attributes;
 using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using LinaTask.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -95,7 +96,11 @@ namespace LinaTask.Api.Controllers
         {
             try
             {
-                var sessions = await _sessionService.GetSessionsByStatusAsync(status);
+                // Parsear el string a enum, ignorando mayúsculas/minúsculas
+                if (!Enum.TryParse<SessionStatus>(status, ignoreCase: true, out var sessionStatus))
+                    return BadRequest(new { message = $"Estado inválido: '{status}'. Valores válidos: {string.Join(", ", Enum.GetNames<SessionStatus>())}" });
+
+                var sessions = await _sessionService.GetSessionsByStatusAsync(sessionStatus);
                 return Ok(sessions);
             }
             catch (Exception ex)

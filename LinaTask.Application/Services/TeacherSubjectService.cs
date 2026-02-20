@@ -62,6 +62,10 @@ namespace LinaTask.Application.Services
             if (await _teacherSubjectRepository.ExistsAsync(createDto.TeacherId, createDto.SubjectId))
                 throw new InvalidOperationException("Teacher already teaches this subject");
 
+            // Validar que el precio por hora sea positivo
+            if (createDto.PricePerHour < 0)
+                throw new InvalidOperationException("Price per hour must be greater than or equal to 0");
+
             var teacherSubject = new TeacherSubject
             {
                 Id = Guid.NewGuid(),
@@ -70,6 +74,7 @@ namespace LinaTask.Application.Services
                 ExperienceYears = createDto.ExperienceYears,
                 CertificationUrl = createDto.CertificationUrl,
                 IsPrimary = createDto.IsPrimary,
+                PricePerHour = createDto.PricePerHour, // Asignar nuevo campo
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -91,6 +96,15 @@ namespace LinaTask.Application.Services
 
             if (updateDto.IsPrimary.HasValue)
                 teacherSubject.IsPrimary = updateDto.IsPrimary.Value;
+
+            if (updateDto.PricePerHour.HasValue)
+            {
+                // Validar que el precio por hora sea positivo
+                if (updateDto.PricePerHour.Value < 0)
+                    throw new InvalidOperationException("Price per hour must be greater than or equal to 0");
+
+                teacherSubject.PricePerHour = updateDto.PricePerHour.Value;
+            }
 
             teacherSubject.CreatedAt = teacherSubject.CreatedAt.ToUniversalTime();
 
@@ -115,6 +129,7 @@ namespace LinaTask.Application.Services
                 ExperienceYears = ts.ExperienceYears,
                 CertificationUrl = ts.CertificationUrl,
                 IsPrimary = ts.IsPrimary,
+                PricePerHour = ts.PricePerHour,
                 CreatedAt = ts.CreatedAt
             };
         }

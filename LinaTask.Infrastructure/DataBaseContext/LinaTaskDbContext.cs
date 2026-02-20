@@ -30,6 +30,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
         public DbSet<TeacherAvailability> TeacherAvailabilities { get; set; }
+        public DbSet<SessionRating> SessionRatings { get; set; }
 
         // =========================
         // LOCATION / UTILITIES
@@ -155,17 +156,80 @@ namespace LinaTask.Infrastructure.DataBaseContext
             // =========================
             // TUTORING SESSION
             // =========================
-            modelBuilder.Entity<TutoringSession>(entity =>
+            modelBuilder.Entity<TutoringSession>(e =>
             {
-                entity.HasOne(ts => ts.Student)
-                      .WithMany(u => u.TutoringSessionsAsStudent)
-                      .HasForeignKey(ts => ts.StudentId)
-                      .OnDelete(DeleteBehavior.Restrict);
+                e.HasKey(s => s.Id);
 
-                entity.HasOne(ts => ts.Teacher)
-                      .WithMany(u => u.TutoringSessionsAsTeacher)
-                      .HasForeignKey(ts => ts.TeacherId)
-                      .OnDelete(DeleteBehavior.Restrict);
+                // ─────────────────────────────────────
+                // Status (Enum → string)
+                // ─────────────────────────────────────
+                e.Property(s => s.Status)
+                 .HasConversion<string>()   // Guarda "Scheduled", "Ready", etc.
+                 .HasMaxLength(20)
+                 .IsRequired();
+
+                // ─────────────────────────────────────
+                // Precio
+                // ─────────────────────────────────────
+                e.Property(s => s.TotalPrice)
+                 .HasColumnType("decimal(10,2)");
+
+                // ─────────────────────────────────────
+                // Relaciones Student / Teacher
+                // ─────────────────────────────────────
+                e.HasOne(s => s.Student)
+                 .WithMany(u => u.TutoringSessionsAsStudent) 
+                 .HasForeignKey(s => s.StudentId)
+                 .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(s => s.Teacher)
+                 .WithMany(u => u.TutoringSessionsAsTeacher)
+                 .HasForeignKey(s => s.TeacherId)
+                 .OnDelete(DeleteBehavior.Restrict);
+
+                // ─────────────────────────────────────
+                // Subject (opcional)
+                // ─────────────────────────────────────
+                e.HasOne(s => s.Subject)
+                 .WithMany()
+                 .HasForeignKey(s => s.SubjectId)
+                 .IsRequired(false)
+                 .OnDelete(DeleteBehavior.SetNull);
+
+                // ─────────────────────────────────────
+                // Rating (One to One)
+                // ─────────────────────────────────────
+                e.HasOne(s => s.Rating)
+                 .WithOne(r => r.Session)
+                 .HasForeignKey<TutoringSession>(s => s.RatingId)
+                 .IsRequired(false)
+                 .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── SessionRating ────────────────────────────────────────
+            modelBuilder.Entity<SessionRating>(e =>
+            {
+                e.HasKey(r => r.Id);
+
+                // SessionRating → TutoringSession
+                // DeleteBehavior.Cascade: si se borra la sesión, se borra la calificación
+                e.HasOne(r => r.Session)
+                 .WithOne(s => s.Rating)
+                 .HasForeignKey<SessionRating>(r => r.SessionId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                // SessionRating → User (quien calificó)
+                // Restrict para no borrar calificaciones si se borra el usuario
+                e.HasOne(r => r.RatedByUser)
+                 .WithMany()
+                 .HasForeignKey(r => r.RatedByUserId)
+                 .OnDelete(DeleteBehavior.Restrict);
+
+                e.Property(r => r.Score)
+                 .IsRequired();
+
+                e.Property(r => r.Comment)
+                 .HasMaxLength(1000);
             });
 
             // =========================
@@ -196,6 +260,12 @@ namespace LinaTask.Infrastructure.DataBaseContext
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.Property(ts => ts.ExperienceYears).HasColumnType("integer");
+
+                // Nueva configuración para PricePerHour
+                entity.Property(ts => ts.PricePerHour)
+                      .HasColumnType("decimal(10,2)")
+                      .HasDefaultValue(0m)
+                      .IsRequired();
             });
 
             // =========================
