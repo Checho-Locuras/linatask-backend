@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
-using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 
@@ -12,7 +11,8 @@ namespace LinaTask.Infrastructure.Services
 {
     /// <summary>
     /// Integración con la API de 100ms (https://www.100ms.live).
-    /// Docs: https://www.100ms.live/docs/server-side/v2/introduction/request-signing
+    /// El AppSecret se usa como UTF-8 (texto plano, no decodificado desde Base64).
+    /// El Issuer es un valor interno de 100ms, diferente al AppAccessKey.
     /// </summary>
     public class HmsVideoService : IHmsVideoService
     {
@@ -20,16 +20,11 @@ namespace LinaTask.Infrastructure.Services
         private readonly IConfiguration _config;
         private readonly ILogger<HmsVideoService> _logger;
 
-        // Claves obtenidas del dashboard de 100ms
         private string AppAccessKey => _config["Hms:AppAccessKey"]!;
         private string AppSecret => _config["Hms:AppSecret"]!;
         private string BaseUrl => _config["Hms:BaseUrl"] ?? "https://api.100ms.live/v2";
-
-        /// <summary>
-        /// Template ID del "classroom" configurado en el dashboard de 100ms.
-        /// Puedes tener uno para 1-a-1 y otro para grupos.
-        /// </summary>
         private string TemplateId => _config["Hms:TemplateId"]!;
+        private string Issuer => _config["Hms:Issuer"]!;
 
         public HmsVideoService(HttpClient http, IConfiguration config, ILogger<HmsVideoService> logger)
         {
@@ -44,17 +39,15 @@ namespace LinaTask.Infrastructure.Services
 
         public async Task<string> CreateRoomAsync(Guid sessionId, string sessionName)
         {
-            var managementToken = GenerateManagementToken();
-
             _http.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", managementToken);
+                new AuthenticationHeaderValue("Bearer", GenerateManagementToken());
 
             var payload = new
             {
-                name = $"session-{sessionId}",           // nombre único
+                name = $"session-{sessionId}",
                 description = sessionName,
                 template_id = TemplateId,
-                region = "us"                              // o "eu", "in" según tu audiencia
+                region = "us"
             };
 
             var response = await _http.PostAsync(
@@ -62,7 +55,12 @@ namespace LinaTask.Infrastructure.Services
                 new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
             );
 
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                _logger.LogError("100ms CreateRoom failed ({Status}): {Body}", response.StatusCode, error);
+                throw new HttpRequestException($"100ms {response.StatusCode}: {error}");
+            }
 
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
@@ -76,38 +74,31 @@ namespace LinaTask.Infrastructure.Services
         // GENERAR TOKEN DE PARTICIPANTE
         // ─────────────────────────────────────────────────
 
-        /// <param name="role">Debe coincidir con un rol definido en el template de 100ms
-        ///   (ej: "teacher", "student", "viewer").</param>
-        public async Task<string> GenerateTokenAsync(
+        public Task<string> GenerateTokenAsync(
             string roomId, string userId, string role, string userName)
         {
-            // El token de participante se firma localmente con AppAccessKey + AppSecret
-            // Docs: https://www.100ms.live/docs/concepts/v2/concepts/security-and-tokens
-
             var now = DateTimeOffset.UtcNow;
 
-            var claims = new[]
+            var payloadDict = new JwtPayload
             {
-                new Claim("room_id",    roomId),
-                new Claim("user_id",    userId),
-                new Claim("role",       role),
-                new Claim("user_name",  userName),
-                new Claim("type",       "app"),                 // "app" = participante
-                new Claim("version",    "2"),
-                new Claim("iat",        now.ToUnixTimeSeconds().ToString()),
-                new Claim("exp",        now.AddHours(4).ToUnixTimeSeconds().ToString()),
-                new Claim("jti",        Guid.NewGuid().ToString("N"))
+                { "version",    2            },
+                { "type",       "app"        },
+                { "app_data",   null         },
+                { "role",       role         },
+                { "room_id",    roomId       },
+                { "user_id",    userId       },
+                { "user_name",  userName     },
+                { "iss",        Issuer       },
+                { "sub",        "api"        },
+                { "nbf",        now.ToUnixTimeSeconds()             },
+                { "iat",        now.ToUnixTimeSeconds()             },
+                { "exp",        now.AddHours(4).ToUnixTimeSeconds() },
+                { "jti",        Guid.NewGuid().ToString("N")        }
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(AppSecret));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var header = new JwtHeader(creds);
-            header["kid"] = AppAccessKey;                       // requerido por 100ms
+            payloadDict.Add("access_key", AppAccessKey);
 
-            var payload = new JwtPayload(claims);
-            var token = new JwtSecurityToken(header, payload);
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return Task.FromResult(BuildJwt(payloadDict));
         }
 
         // ─────────────────────────────────────────────────
@@ -116,9 +107,8 @@ namespace LinaTask.Infrastructure.Services
 
         public async Task DisableRoomAsync(string roomId)
         {
-            var managementToken = GenerateManagementToken();
             _http.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", managementToken);
+                new AuthenticationHeaderValue("Bearer", GenerateManagementToken());
 
             var payload = new { enabled = false };
             var response = await _http.PostAsync(
@@ -127,40 +117,44 @@ namespace LinaTask.Infrastructure.Services
             );
 
             if (!response.IsSuccessStatusCode)
-                _logger.LogWarning("Could not disable 100ms room {RoomId}: {Status}", roomId, response.StatusCode);
+                _logger.LogWarning("100ms DisableRoom failed ({Status}) for room {RoomId}",
+                    response.StatusCode, roomId);
         }
 
         // ─────────────────────────────────────────────────
-        // MANAGEMENT TOKEN (server-to-server)
+        // HELPERS PRIVADOS
         // ─────────────────────────────────────────────────
 
-        /// <summary>
-        /// Token para llamadas server-side a la API de 100ms.
-        /// Diferente al token de participante.
-        /// </summary>
         private string GenerateManagementToken()
         {
             var now = DateTimeOffset.UtcNow;
 
-            var claims = new[]
+            var payloadDict = new JwtPayload
             {
-                new Claim("access_key", AppAccessKey),
-                new Claim("type",       "management"),
-                new Claim("version",    "2"),
-                new Claim("iat",        now.ToUnixTimeSeconds().ToString()),
-                new Claim("exp",        now.AddHours(24).ToUnixTimeSeconds().ToString()),
-                new Claim("jti",        Guid.NewGuid().ToString("N"))
+                { "access_key", AppAccessKey                        },
+                { "type",       "management"                        },
+                { "version",    2                                   },
+                { "nbf",        now.ToUnixTimeSeconds()             },
+                { "iat",        now.ToUnixTimeSeconds()             },
+                { "exp",        now.AddHours(24).ToUnixTimeSeconds() },
+                { "jti",        Guid.NewGuid().ToString("N")        }
             };
 
+            return BuildJwt(payloadDict);
+        }
+
+        /// <summary>
+        /// Firma el JWT con AppSecret en UTF-8 (no Base64).
+        /// Sin "kid" en el header — 100ms no lo espera.
+        /// </summary>
+        private string BuildJwt(JwtPayload payload)
+        {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(AppSecret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var header = new JwtHeader(creds);
-            header["kid"] = AppAccessKey;
 
-            var payload = new JwtPayload(claims);
-            var token = new JwtSecurityToken(header, payload);
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            return new JwtSecurityTokenHandler()
+                .WriteToken(new JwtSecurityToken(header, payload));
         }
     }
 }

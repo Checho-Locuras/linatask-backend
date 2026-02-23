@@ -203,5 +203,78 @@ namespace LinaTask.Api.Controllers
                 return StatusCode(500, "Error interno del servidor");
             }
         }
+
+        [HttpPost("{id:guid}/video/join")]
+        public async Task<ActionResult<VideoRoomAccessDto>> JoinVideoRoom(Guid id)
+        {
+            try
+            {
+                // Obtener el ID del usuario actual desde el token
+                var userIdClaim = User.FindFirst("sub")?.Value ??
+                                  User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (!Guid.TryParse(userIdClaim, out var requestingUserId))
+                {
+                    return Unauthorized("No se pudo identificar al usuario");
+                }
+
+                _logger.LogInformation("Usuario {UserId} solicitando unirse a sala de video {SessionId}", requestingUserId, id);
+
+                var access = await _sessionService.GetOrCreateVideoRoomAsync(id, requestingUserId);
+                return Ok(access);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "Sesión no encontrada: {SessionId}", id);
+                return NotFound($"Sesión con ID {id} no encontrada");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Acceso no autorizado a sala de video {SessionId} por usuario {UserId}", id, User.FindFirst("sub")?.Value);
+                return Forbid(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Operación inválida para sala de video {SessionId}", id);
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al unirse a sala de video {SessionId}", id);
+                return StatusCode(500, "Error interno del servidor al procesar la solicitud de video");
+            }
+        }
+
+        // ─────────────────────────────────────────────────
+        // Endpoint adicional: Obtener token directamente (si lo necesitas)
+        // ─────────────────────────────────────────────────
+        [HttpGet("{id:guid}/video/token")]
+        public async Task<ActionResult<string>> GetVideoToken(Guid id)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst("sub")?.Value ??
+                                  User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (!Guid.TryParse(userIdClaim, out var requestingUserId))
+                {
+                    return Unauthorized();
+                }
+
+                var session = await _sessionService.GetSessionByIdAsync(id, requestingUserId);
+                if (session == null)
+                    return NotFound();
+
+                if (string.IsNullOrEmpty(session.VideoToken))
+                    return NotFound("No hay token de video disponible para esta sesión");
+
+                return Ok(new { token = session.VideoToken });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener token de video");
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
     }
 }
