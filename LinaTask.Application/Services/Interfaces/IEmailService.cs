@@ -8,5 +8,7 @@ namespace LinaTask.Application.Services.Interfaces
     {
         Task SendPasswordResetEmailAsync(string toEmail, string userName, string otpCode);
         Task SendWelcomeEmailAsync(string toEmail, string userName);
+        Task SendFromTemplateAsync(string toEmail, string templateKey,
+            Dictionary<string, string> variables);
     }
 }

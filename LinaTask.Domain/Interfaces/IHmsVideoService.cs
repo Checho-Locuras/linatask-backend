@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace LinaTask.Application.Services.Interfaces
+﻿namespace LinaTask.Domain.Interfaces
 {
     public interface IHmsVideoService
     {

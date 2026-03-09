@@ -39,7 +39,7 @@ namespace LinaTask.Domain.Models.Login
         [MinLength(1, ErrorMessage = "Debes seleccionar al menos un rol")]
         public List<Guid> RoleIds { get; set; } = new();
 
-        public DateTime? BirthDate { get; set; } = DateTime.Now;
+        public DateTime BirthDate { get; set; } = DateTime.Now;
         public string? ProfilePhoto { get; set; }
 
         // =====================

@@ -91,7 +91,6 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPut("updateUser/{id:guid}")]
-        [PermissionAuthorize("USER.EDIT")]
         public async Task<ActionResult<UserDto>> UpdateUser(Guid id, [FromBody] UpdateUserDto updateUserDto)
         {
             try

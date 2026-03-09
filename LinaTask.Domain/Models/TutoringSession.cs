@@ -71,5 +71,8 @@ namespace LinaTask.Domain.Models
         /// <summary>Precio total de la sesión (snapshot del pricePerHour × horas).</summary>
         [Column(TypeName = "decimal(10,2)")]
         public decimal? TotalPrice { get; set; }
+
+        /// <summary>Indica si ya se enviaron las notificaciones de recordatorio (15 min antes).</summary>
+        public bool ReminderSent { get; set; } = false;
     }
 }

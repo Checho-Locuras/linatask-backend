@@ -42,21 +42,17 @@ namespace LinaTask.Application.Services.Auth
 
         public async Task<AuthResponseDto> LoginAsync(LoginDto loginDto)
         {
-            // Buscar usuario por email
             var user = await _userRepository.GetByEmailAsync(loginDto.Email);
 
             if (user == null)
                 throw new UnauthorizedAccessException("Credenciales inválidas");
 
-            // Verificar contraseña
             if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
                 throw new UnauthorizedAccessException("Credenciales inválidas");
 
-            // Verificar si el usuario está activo
             if (!user.IsActive)
                 throw new UnauthorizedAccessException("Usuario inactivo");
 
-            // Generar tokens
             var token = GenerateJwtToken(user);
             var refreshToken = GenerateRefreshToken();
 
@@ -73,7 +69,8 @@ namespace LinaTask.Application.Services.Auth
 
         public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
         {
-            try {
+            try
+            {
                 // =====================
                 // VALIDACIONES PREVIAS
                 // =====================
@@ -83,13 +80,13 @@ namespace LinaTask.Application.Services.Auth
                 if (existingUser != null)
                     throw new InvalidOperationException("El email ya está registrado");
 
-                // 2. Verificar si el teléfono ya existe
-                existingUser = await _userRepository.GetByPhoneAsync(registerDto.Phone);
-                if (existingUser != null)
-                    throw new InvalidOperationException("El número de teléfono ya está registrado");
-
-                // 3. Validar que no haya perfiles duplicados para el mismo rol
-                ValidateNoDuplicateProfiles(registerDto);
+                // 2. Verificar si el teléfono ya existe (solo si se proporcionó)
+                if (!string.IsNullOrWhiteSpace(registerDto.Phone))
+                {
+                    existingUser = await _userRepository.GetByPhoneAsync(registerDto.Phone);
+                    if (existingUser != null)
+                        throw new InvalidOperationException("El número de teléfono ya está registrado");
+                }
 
                 // =====================
                 // VALIDAR Y CARGAR ROLES
@@ -97,9 +94,7 @@ namespace LinaTask.Application.Services.Auth
 
                 var roles = new List<Role>();
                 if (registerDto.RoleIds == null || !registerDto.RoleIds.Any())
-                {
                     throw new InvalidOperationException("Debes seleccionar al menos un rol");
-                }
 
                 foreach (var roleId in registerDto.RoleIds)
                 {
@@ -109,14 +104,16 @@ namespace LinaTask.Application.Services.Auth
                     roles.Add(role);
                 }
 
-                // 4. Validar que los roles que requieren perfil académico lo tengan
+                // 3. Validar perfiles académicos:
+                //    - Cada rol que lo requiera debe tener AL MENOS UN perfil
+                //    - Se permiten MÚLTIPLES perfiles para el mismo rol (ej: dos carreras)
+                //    - No puede haber perfiles para roles no seleccionados
                 await ValidateAcademicProfiles(registerDto, roles);
 
                 // =====================
-                // VALIDAR UBICACIÓN E INSTITUCIÓN
+                // VALIDAR INSTITUCIONES
                 // =====================
 
-                // 6. Validar que todas las instituciones en los perfiles existen
                 var institutionIds = registerDto.AcademicProfiles
                     .Select(p => p.InstitutionId)
                     .Distinct()
@@ -133,7 +130,6 @@ namespace LinaTask.Application.Services.Auth
                 // CREAR USUARIO
                 // =====================
 
-                // 7. Crear nuevo usuario
                 var user = new User
                 {
                     Id = Guid.NewGuid(),
@@ -151,7 +147,6 @@ namespace LinaTask.Application.Services.Auth
                 // ASIGNAR ROLES
                 // =====================
 
-                // 8. Asignar roles al usuario
                 foreach (var role in roles)
                 {
                     user.UserRoles.Add(new UserRole
@@ -163,15 +158,16 @@ namespace LinaTask.Application.Services.Auth
 
                 // =====================
                 // CREAR PERFILES ACADÉMICOS
+                // Se admiten múltiples perfiles por rol (ej: estudiante de dos carreras)
                 // =====================
 
-                // 9. Crear perfiles académicos (uno por cada rol que lo requiera)
                 foreach (var profileDto in registerDto.AcademicProfiles)
                 {
                     var academicProfile = new UserAcademicProfile
                     {
                         Id = Guid.NewGuid(),
                         UserId = user.Id,
+                        RoleId = profileDto.RoleId,
                         InstitutionId = profileDto.InstitutionId,
                         EducationLevel = profileDto.EducationLevel,
                         CurrentSemester = profileDto.CurrentSemester,
@@ -179,6 +175,7 @@ namespace LinaTask.Application.Services.Auth
                         GraduationYear = profileDto.GraduationYear,
                         StudyArea = profileDto.StudyArea,
                         AcademicStatus = profileDto.AcademicStatus,
+                        ProfessionalDescription = profileDto.ProfessionalDescription,
                         CreatedAt = DateTime.UtcNow
                     };
                     user.AcademicProfiles.Add(academicProfile);
@@ -188,10 +185,8 @@ namespace LinaTask.Application.Services.Auth
                 // CREAR DIRECCIONES
                 // =====================
 
-                // 10. Crear direcciones desde la lista del DTO
                 foreach (var addressDto in registerDto.UserAddresses)
                 {
-                    // Validar que la ciudad existe
                     var city = await _locationRepository.GetCityByIdAsync(addressDto.CityId);
                     if (city == null)
                         throw new InvalidOperationException($"Ciudad con ID {addressDto.CityId} no encontrada");
@@ -208,39 +203,33 @@ namespace LinaTask.Application.Services.Auth
                     user.Addresses.Add(address);
                 }
 
-                // Validar que haya al menos una dirección primaria si hay direcciones
+                // Garantizar que haya exactamente una dirección primaria
                 if (registerDto.UserAddresses.Any() &&
                     !registerDto.UserAddresses.Any(a => a.IsPrimary))
                 {
-                    // Si no hay dirección primaria, marcar la primera como primaria
                     user.Addresses.First().IsPrimary = true;
                 }
+
                 // =====================
                 // GUARDAR EN BASE DE DATOS
                 // =====================
 
-                // 11. Guardar en base de datos
                 var createdUser = await _userRepository.CreateAsync(user);
 
                 // =====================
                 // GENERAR TOKENS
                 // =====================
 
-                // 12. Generar tokens
                 var token = GenerateJwtToken(createdUser);
                 var refreshToken = GenerateRefreshToken();
 
                 _logger.LogInformation(
-                    "Usuario registrado exitosamente: {Email} con roles: {Roles}",
+                    "Usuario registrado exitosamente: {Email} con roles: {Roles}, perfiles académicos: {ProfileCount}",
                     createdUser.Email,
-                    string.Join(", ", roles.Select(r => r.Name))
+                    string.Join(", ", roles.Select(r => r.Name)),
+                    createdUser.AcademicProfiles.Count
                 );
 
-                // =====================
-                // RETORNAR RESPUESTA
-                // =====================
-
-                // 13. Retornar respuesta
                 return new AuthResponseDto
                 {
                     Token = token,
@@ -248,11 +237,12 @@ namespace LinaTask.Application.Services.Auth
                     Expiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
                     User = MapToUserDto(createdUser)
                 };
-            } catch(Exception e)
-            {
-                return null;
             }
-            
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error al registrar usuario: {Email}", registerDto.Email);
+                throw; // Re-lanzar para que el controller devuelva el mensaje correcto al cliente
+            }
         }
 
         // =====================================================
@@ -260,175 +250,111 @@ namespace LinaTask.Application.Services.Auth
         // =====================================================
 
         /// <summary>
-        /// Valida que no existan perfiles académicos duplicados para el mismo rol
-        /// </summary>
-        private void ValidateNoDuplicateProfiles(RegisterDto registerDto)
-        {
-            var duplicateRoles = registerDto.AcademicProfiles
-                .GroupBy(p => p.RoleId)
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key)
-                .ToList();
-
-            if (duplicateRoles.Any())
-            {
-                throw new InvalidOperationException(
-                    "No puedes tener múltiples perfiles académicos para el mismo rol"
-                );
-            }
-        }
-
-        /// <summary>
-        /// Valida que los roles que requieren perfil académico lo tengan
+        /// Valida los perfiles académicos del registro:
+        /// - Cada rol que requiere perfil académico debe tener AL MENOS UNO.
+        /// - Se permiten MÚLTIPLES perfiles para el mismo rol (ej: dos carreras simultáneas).
+        /// - No puede haber perfiles para roles que no fueron seleccionados.
+        /// - Cada perfil individual pasa por validación de campos según nivel educativo.
         /// </summary>
         private async Task ValidateAcademicProfiles(RegisterDto registerDto, List<Role> roles)
         {
-            // Roles que requieren perfil académico obligatorio
             var rolesRequiringProfile = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "student",
-                    "teacher"
-                };
+            {
+                "student",
+                "teacher"
+            };
 
-            // Verificar cada rol seleccionado
+            // Verificar que cada rol que lo requiera tenga AL MENOS UN perfil
             foreach (var role in roles)
             {
-                // Si el rol requiere perfil académico
                 if (rolesRequiringProfile.Contains(role.Name))
                 {
-                    // Verificar que exista un perfil para este rol
-                    var hasProfile = registerDto.AcademicProfiles
-                        .Any(p => p.RoleId == role.Id);
+                    var profilesForRole = registerDto.AcademicProfiles
+                        .Where(p => p.RoleId == role.Id)
+                        .ToList();
 
-                    if (!hasProfile)
-                    {
+                    if (!profilesForRole.Any())
                         throw new InvalidOperationException(
-                            $"El rol '{role.Name}' requiere un perfil académico completo"
-                        );
+                            $"El rol '{role.Name}' requiere al menos un perfil académico completo");
+
+                    // Validar cada perfil de este rol individualmente
+                    foreach (var profile in profilesForRole)
+                    {
+                        ValidateEducationLevelFields(profile, role.Name);
                     }
-
-                    // Obtener el perfil para validaciones adicionales
-                    var profile = registerDto.AcademicProfiles
-                        .First(p => p.RoleId == role.Id);
-
-                    // Validaciones específicas según el nivel educativo
-                    ValidateEducationLevelFields(profile, role.Name);
                 }
             }
 
-            // Validar que no haya perfiles para roles que no fueron seleccionados
+            // Validar que no haya perfiles para roles no seleccionados
             var selectedRoleIds = roles.Select(r => r.Id).ToHashSet();
-            var profilesWithoutRole = registerDto.AcademicProfiles
+            var orphanProfiles = registerDto.AcademicProfiles
                 .Where(p => !selectedRoleIds.Contains(p.RoleId))
                 .ToList();
 
-            if (profilesWithoutRole.Any())
-            {
+            if (orphanProfiles.Any())
                 throw new InvalidOperationException(
-                    "Hay perfiles académicos para roles que no fueron seleccionados"
-                );
-            }
+                    "Hay perfiles académicos para roles que no fueron seleccionados");
         }
 
         /// <summary>
-        /// Valida que los campos específicos del nivel educativo estén correctos
+        /// Valida que los campos de un perfil académico sean coherentes con su nivel educativo.
         /// </summary>
         private void ValidateEducationLevelFields(AcademicProfileDto profile, string roleName)
         {
-            var educationLevel = profile.EducationLevel.ToLower();
+            var educationLevel = profile.EducationLevel?.ToLower() ?? string.Empty;
 
-            // Niveles que requieren grado (primaria y secundaria)
             var levelsRequiringGrade = new HashSet<string> { "primaria", "secundaria" };
-
-            // Niveles que requieren semestre y área de estudio
             var levelsRequiringSemester = new HashSet<string>
-                {
-                    "bachillerato",
-                    "universidad",
-                    "tecnica",
-                    "tecnologica",
-                    "especializacion",
-                    "maestria",
-                    "doctorado"
-                };
+            {
+                "bachillerato", "universidad", "tecnica",
+                "tecnologica", "especializacion", "maestria", "doctorado"
+            };
 
             if (levelsRequiringGrade.Contains(educationLevel))
             {
-                // Primaria y Secundaria requieren grado
                 if (string.IsNullOrWhiteSpace(profile.CurrentGrade))
-                {
                     throw new InvalidOperationException(
-                        $"El nivel '{profile.EducationLevel}' requiere especificar el grado actual"
-                    );
-                }
+                        $"El nivel '{profile.EducationLevel}' requiere especificar el grado actual");
 
-                // Validar que no tengan semestre ni área de estudio
                 if (profile.CurrentSemester.HasValue || !string.IsNullOrWhiteSpace(profile.StudyArea))
-                {
                     throw new InvalidOperationException(
-                        $"El nivel '{profile.EducationLevel}' no debe tener semestre ni área de estudio"
-                    );
-                }
+                        $"El nivel '{profile.EducationLevel}' no debe tener semestre ni área de estudio");
             }
             else if (levelsRequiringSemester.Contains(educationLevel))
             {
-                // Educación superior requiere semestre y área de estudio
                 if (!profile.CurrentSemester.HasValue || profile.CurrentSemester <= 0)
-                {
                     throw new InvalidOperationException(
-                        $"El nivel '{profile.EducationLevel}' requiere especificar el semestre actual (mayor a 0)"
-                    );
-                }
+                        $"El nivel '{profile.EducationLevel}' requiere especificar el semestre actual (mayor a 0)");
+
+                if (profile.CurrentSemester > 20)
+                    throw new InvalidOperationException("El semestre no puede ser mayor a 20");
 
                 if (string.IsNullOrWhiteSpace(profile.StudyArea))
-                {
                     throw new InvalidOperationException(
-                        $"El nivel '{profile.EducationLevel}' requiere especificar el área de estudio"
-                    );
-                }
+                        $"El nivel '{profile.EducationLevel}' requiere especificar el área de estudio");
 
-                // Validar que no tengan grado
                 if (!string.IsNullOrWhiteSpace(profile.CurrentGrade))
-                {
                     throw new InvalidOperationException(
-                        $"El nivel '{profile.EducationLevel}' no debe tener grado escolar"
-                    );
-                }
-
-                // Validar rango de semestre razonable
-                if (profile.CurrentSemester > 20)
-                {
-                    throw new InvalidOperationException(
-                        "El semestre no puede ser mayor a 20"
-                    );
-                }
+                        $"El nivel '{profile.EducationLevel}' no debe tener grado escolar");
             }
             else
             {
                 throw new InvalidOperationException(
-                    $"Nivel educativo '{profile.EducationLevel}' no reconocido"
-                );
+                    $"Nivel educativo '{profile.EducationLevel}' no reconocido");
             }
 
-            // Validar estado académico
             var validStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "activo",
-                    "graduado",
-                    "inactivo"
-                };
+            {
+                "activo", "graduado", "inactivo"
+            };
 
             if (!validStatuses.Contains(profile.AcademicStatus))
-            {
                 throw new InvalidOperationException(
-                    $"Estado académico '{profile.AcademicStatus}' no válido. Valores permitidos: activo, graduado, inactivo"
-                );
-            }
+                    $"Estado académico '{profile.AcademicStatus}' no válido. Valores permitidos: activo, graduado, inactivo");
         }
 
         public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto refreshTokenDto)
         {
-            // Validar el token actual
             var principal = GetPrincipalFromExpiredToken(refreshTokenDto.Token);
             var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -439,7 +365,6 @@ namespace LinaTask.Application.Services.Auth
             if (user == null)
                 throw new UnauthorizedAccessException("User not found");
 
-            // Generar nuevos tokens
             var newToken = GenerateJwtToken(user);
             var newRefreshToken = GenerateRefreshToken();
 
@@ -454,8 +379,6 @@ namespace LinaTask.Application.Services.Auth
 
         public Task<bool> RevokeTokenAsync(string userId)
         {
-            // Implementar lógica para invalidar refresh tokens en base de datos
-            // Por ahora retornamos true
             return Task.FromResult(true);
         }
 
@@ -472,25 +395,18 @@ namespace LinaTask.Application.Services.Auth
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
-            // Agregar claims de roles
             if (user.UserRoles != null && user.UserRoles.Any())
             {
                 foreach (var userRole in user.UserRoles)
                 {
                     if (userRole.Role != null)
-                    {
                         claims.Add(new Claim(ClaimTypes.Role, userRole.Role.Name));
-                    }
                 }
             }
 
-            // ===== NUEVO: Agregar claims de permisos =====
             var permissions = GetUserPermissions(user.Id).Result;
             foreach (var permission in permissions)
-            {
                 claims.Add(new Claim("permission", permission.Code));
-            }
-            // ==============================================
 
             var token = new JwtSecurityToken(
                 issuer: _jwtSettings.Issuer,
@@ -503,7 +419,6 @@ namespace LinaTask.Application.Services.Auth
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // Método auxiliar para obtener permisos del usuario
         private async Task<IEnumerable<Permission>> GetUserPermissions(Guid userId)
         {
             return await _permissionRepository.GetPermissionsByUserIdAsync(userId);
@@ -525,7 +440,7 @@ namespace LinaTask.Application.Services.Auth
                 ValidateIssuer = false,
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey)),
-                ValidateLifetime = false // No validamos expiración aquí
+                ValidateLifetime = false
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -552,7 +467,6 @@ namespace LinaTask.Application.Services.Auth
                 PhoneNumber = user.PhoneNumber,
                 BirthDate = user.BirthDate,
 
-                // Mapear roles
                 UserRoles = user.UserRoles?.Select(ur => new UserRoleDto
                 {
                     RoleId = ur.RoleId,
@@ -560,10 +474,11 @@ namespace LinaTask.Application.Services.Auth
                     RoleDescription = ur.Role?.Description ?? ""
                 }).ToList() ?? new List<UserRoleDto>(),
 
-                // Mapear perfiles académicos
                 AcademicProfiles = user.AcademicProfiles.Select(ap => new UserAcademicProfileDto
                 {
                     Id = ap.Id,
+                    RoleId = ap.RoleId,
+                    RoleName = ap.Role?.Name ?? "",
                     InstitutionId = ap.InstitutionId,
                     InstitutionName = ap.Institution?.Name ?? "",
                     EducationLevel = ap.EducationLevel,
@@ -572,10 +487,10 @@ namespace LinaTask.Application.Services.Auth
                     GraduationYear = ap.GraduationYear,
                     StudyArea = ap.StudyArea,
                     AcademicStatus = ap.AcademicStatus,
+                    ProfessionalDescription = ap.ProfessionalDescription,
                     CreatedAt = ap.CreatedAt
                 }).ToList(),
 
-                // Mapear direcciones
                 Addresses = user.Addresses.Select(a => new UserAddressDto
                 {
                     Id = a.Id,
@@ -588,6 +503,24 @@ namespace LinaTask.Application.Services.Auth
                     CreatedAt = a.CreatedAt
                 }).ToList()
             };
+        }
+
+        public async Task ChangePasswordAsync(Guid userId, ChangePasswordDto dto)
+        {
+            var user = await _userRepository.GetByIdAsync(userId)
+                ?? throw new UnauthorizedAccessException("Usuario no encontrado");
+
+            if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+                throw new UnauthorizedAccessException("La contraseña actual es incorrecta");
+
+            if (BCrypt.Net.BCrypt.Verify(dto.NewPassword, user.PasswordHash))
+                throw new InvalidOperationException("La nueva contraseña debe ser diferente a la actual");
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.CreatedAt = user.CreatedAt.ToUniversalTime();
+            user.BirthDate = user.BirthDate.ToUniversalTime();
+
+            await _userRepository.UpdateAsync(user);
         }
     }
 }

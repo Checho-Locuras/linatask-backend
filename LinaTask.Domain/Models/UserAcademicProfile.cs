@@ -28,6 +28,9 @@ namespace LinaTask.Domain.Models
         [MaxLength(100)]
         public string? StudyArea { get; set; }
 
+        [Column(TypeName = "text")]
+        public string? ProfessionalDescription { get; set; }
+
         [Required, MaxLength(30)]
         public string AcademicStatus { get; set; } = null!;
 
@@ -36,5 +39,10 @@ namespace LinaTask.Domain.Models
         // Relaciones
         public User User { get; set; } = null!;
         public Institution Institution { get; set; } = null!;
+        [Required]
+        public Guid RoleId { get; set; }
+
+        // Relación
+        public Role Role { get; set; } = null!;
     }
 }

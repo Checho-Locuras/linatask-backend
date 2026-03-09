@@ -91,8 +91,13 @@ builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
 builder.Services.AddScoped<IMenuRepository, MenuRepository>();
 builder.Services.AddScoped<ITeacherAvailabilityRepository, TeacherAvailabilityRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
-
+builder.Services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IMarketplaceTaskRepository, MarketplaceTaskRepository>();
+builder.Services.AddScoped<ITaskOfferRepository, TaskOfferRepository>();
+builder.Services.AddScoped<IMarketplacePaymentRepository, MarketplacePaymentRepository>();
+builder.Services.AddScoped<ITaskCorrectionRepository, TaskCorrectionRepository>();
+builder.Services.AddScoped<IMarketplaceRatingRepository, MarketplaceRatingRepository>();
 
 // Registrar TODOS los Servicios
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -119,6 +124,16 @@ builder.Services.AddHttpClient<IHmsVideoService, HmsVideoService>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<INotificationPusher, SignalRNotificationPusher>();
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+builder.Services.AddScoped<IMarketplaceTaskService, MarketplaceTaskService>();
+builder.Services.AddScoped<ITaskOfferService, TaskOfferService>();
+builder.Services.AddScoped<IMarketplacePaymentService, MarketplacePaymentService>();
+builder.Services.AddScoped<ITaskCorrectionService, TaskCorrectionService>();
+builder.Services.AddScoped<IMarketplaceRatingService, MarketplaceRatingService>();
+
+// Backgroung Services
+builder.Services.AddHostedService<SessionReminderService>();
+builder.Services.AddHostedService<PaymentAutoReleaseWorker>();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -131,7 +146,11 @@ else
 
 
 // Configurar Controllers
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 //SignalR para chat
 builder.Services.AddSignalR(options =>

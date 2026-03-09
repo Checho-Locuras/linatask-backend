@@ -30,5 +30,6 @@ namespace LinaTask.Application.Services.Interfaces
 
         // ── Rating ────────────────────────────────────────────────
         Task<SessionRatingDto> CreateRatingAsync(CreateSessionRatingDto dto, Guid ratedByUserId);
+
     }
 }

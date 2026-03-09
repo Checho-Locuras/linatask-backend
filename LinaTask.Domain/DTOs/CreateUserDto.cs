@@ -26,7 +26,7 @@ namespace LinaTask.Domain.DTOs
 
         public string? ProfilePhoto { get; set; }
 
-        public DateTime? BirthDate { get; set; }
+        public DateTime BirthDate { get; set; } = DateTime.Now;
 
         // =====================
         // ACADEMIC PROFILE (inicial)

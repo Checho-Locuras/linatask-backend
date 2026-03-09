@@ -109,13 +109,13 @@ namespace LinaTask.Application.Services
             // ── Notificar al docente: nueva solicitud ──────────────
             // Persiste en DB + push SignalR en tiempo real
             await _notificationService.NotifySessionBookedAsync(
-                teacherId: created.TeacherId,
-                studentId: created.StudentId,
-                studentName: student.Name,
-                sessionId: created.Id,
-                subjectName: teacher.UserRoles.FirstOrDefault()?.Role?.Name ?? "la sesión",
-                sessionDate: created.StartTime
-            );
+                    teacherId: created.TeacherId,
+                    studentId: created.StudentId,
+                    studentName: student.Name,
+                    sessionId: created.Id,
+                    subjectName: teacher.UserRoles.FirstOrDefault()?.Role?.Name ?? "la sesión",
+                    sessionDate: created.StartTime
+                );
 
             return MapToDto(created);
         }

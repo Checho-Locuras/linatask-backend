@@ -8,6 +8,7 @@ namespace LinaTask.Domain.DTOs
     // DTO para perfiles académicos en el registro
     public class AcademicProfileDto
     {
+        public Guid? Id { get; set; }
         // Identificador del rol asociado (student o teacher)
         [Required]
         public Guid RoleId { get; set; }
@@ -32,5 +33,6 @@ namespace LinaTask.Domain.DTOs
         [Required]
         [MaxLength(30)]
         public string AcademicStatus { get; set; } = "activo";
+        public string? ProfessionalDescription { get; set; }
     }
 }

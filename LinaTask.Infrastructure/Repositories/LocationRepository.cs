@@ -52,6 +52,12 @@ namespace LinaTask.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<bool> ExistsInstitutionAsync(Guid id)
+        {
+            return await _context.Institutions
+                .AnyAsync(i => i.Id == id);
+        }
+
         public async Task<City?> GetCityByIdAsync(Guid cityId)
         {
             return await _context.Cities

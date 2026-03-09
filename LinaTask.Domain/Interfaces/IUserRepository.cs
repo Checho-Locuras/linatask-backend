@@ -20,5 +20,7 @@ namespace LinaTask.Infrastructure.Repositories
         Task<bool> HasRoleAsync(Guid userId, string roleName);
         Task<UserAddress> UpdateAddressAsync(UserAddress address);
         Task<User> UpdateAsync(User user);
+        Task DeleteUserRolesAsync(Guid userId);
+        Task SyncAcademicProfilesAsync(Guid userId, List<UserAcademicProfile> profiles);
     }
 }

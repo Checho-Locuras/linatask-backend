@@ -1,25 +1,36 @@
-﻿using LinaTask.Application.Services.Interfaces;
+﻿using LinaTask.Application.DTOs;
+using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.DTOs;
+using LinaTask.Domain.Enums;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace LinaTask.Application.Services
 {
     public class NotificationService : INotificationService
     {
         private readonly INotificationRepository _repo;
+        private readonly IEmailService _emailService;
+        private readonly IUserRepository _userRepository;
         private readonly INotificationPusher _pusher; 
         private readonly ILogger<NotificationService> _logger;
 
         public NotificationService(
             INotificationRepository repo,
             INotificationPusher pusher,
-            ILogger<NotificationService> logger)
+            ILogger<NotificationService> logger,
+            IEmailService emailService,         // ← nuevo
+            IUserRepository userRepository
+            )
         {
             _repo = repo;
             _pusher = pusher;
             _logger = logger;
+            _emailService = emailService;
+            _userRepository = userRepository;
         }
 
         // ── CRUD BASE ────────────────────────────────────────────────
@@ -35,7 +46,10 @@ namespace LinaTask.Application.Services
                 Category = dto.Category,
                 ReferenceId = dto.ReferenceId,
                 ReferenceType = dto.ReferenceType,
-                ActionUrl = dto.ActionUrl
+                ActionUrl = dto.ActionUrl,
+                ActionsJson = dto.Actions is { Count: > 0 }
+                    ? JsonSerializer.Serialize(dto.Actions)
+                    : null
             };
 
             var saved = await _repo.CreateAsync(entity);
@@ -81,7 +95,22 @@ namespace LinaTask.Application.Services
                 Category = NotificationCategory.SessionBooked,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
-                ActionUrl = "/teacher/requests"
+                ActionUrl = "/teacher/sessions",
+                Actions = new List<NotificationActionDto>
+                {
+                    new() {
+                        Label = "✅ Aceptar",
+                        ActionType = "accept_session",
+                        Payload = sessionId.ToString(),
+                        Style = "primary"
+                    },
+                    new() {
+                        Label = "✕ Rechazar",
+                        ActionType = "reject_session",
+                        Payload = sessionId.ToString(),
+                        Style = "danger"
+                    }
+                }
             });
         }
 
@@ -99,7 +128,15 @@ namespace LinaTask.Application.Services
                 Category = NotificationCategory.SessionConfirmed,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
-                ActionUrl = "/student/sessions"
+                Actions = new List<NotificationActionDto>
+                {
+                    new() {
+                        Label = "📅 Ver sesión",
+                        ActionType = "navigate",
+                        Url = "/student/sessions",
+                        Style = "primary"
+                    }
+                }
             });
         }
 
@@ -183,7 +220,58 @@ namespace LinaTask.Application.Services
             ReferenceId = n.ReferenceId,
             ReferenceType = n.ReferenceType,
             ActionUrl = n.ActionUrl,
-            CreatedAt = n.CreatedAt
+            CreatedAt = n.CreatedAt,
+            // ← nuevo
+            Actions = string.IsNullOrEmpty(n.ActionsJson)
+        ? null
+        : JsonSerializer.Deserialize<List<NotificationActionDto>>(
+            n.ActionsJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
         };
+
+        public async Task NotifySessionReminderAsync(Guid userId, string otherName, Guid sessionId, string subjectName, DateTime sessionDate, int minutesBefore)
+        {
+            var message = $"Tu sesión de {subjectName} con {otherName} " +
+                          $"comienza en {minutesBefore} minutos. ¡Prepárate!";
+
+            await CreateAsync(new CreateNotificationDto
+            {
+                UserId = userId,
+                Title = "⏰ Tu sesión comienza pronto",
+                Message = message,
+                Type = NotificationType.Info,
+                Category = NotificationCategory.SessionReminder,
+                ReferenceId = sessionId,
+                ReferenceType = "Session",
+                ActionUrl = $"/classroom/{sessionId}"
+            });
+
+            // También por email
+            await SendEmailIfAvailableAsync(userId, "session_reminder", new()
+            {
+                ["UserName"] = "Estudiante/Docente",  // se resuelve dentro con GetById
+                ["OtherName"] = otherName,
+                ["SubjectName"] = subjectName,
+                ["MinutesBefore"] = minutesBefore.ToString(),
+                ["SessionTime"] = sessionDate.ToLocalTime().ToString("HH:mm"),
+                ["SessionDate"] = sessionDate.ToLocalTime().ToString("dd/MM/yyyy"),
+                ["ActionUrl"] = $"https://tudominio.com/classroom/{sessionId}"
+            });
+        }
+
+        private async Task SendEmailIfAvailableAsync(Guid userId, string templateKey, Dictionary<string, string> variables)
+        {
+            try
+            {
+                var user = await _userRepository.GetByIdAsync(userId);
+                if (user?.Email is null) return;
+                await _emailService.SendFromTemplateAsync(user.Email, templateKey, variables);
+            }
+            catch (Exception ex)
+            {
+                // El email falla silenciosamente — la notificación push ya se envió
+                _logger.LogWarning(ex, "Failed to send email for user {UserId}.", userId);
+            }
+        }
     }
 }

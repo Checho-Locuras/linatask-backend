@@ -32,6 +32,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<TeacherAvailability> TeacherAvailabilities { get; set; }
         public DbSet<SessionRating> SessionRatings { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
 
         // =========================
         // LOCATION / UTILITIES
@@ -53,6 +54,17 @@ namespace LinaTask.Infrastructure.DataBaseContext
         public DbSet<Message> Messages { get; set; }
 
         public DbSet<MenuPermission> MenuPermissions { get; set; }
+
+        // =========================
+        // MARKET-PLACE
+        // =========================
+        public DbSet<MarketplaceTask> MarketplaceTasks { get; set; }
+        public DbSet<TaskOffer> TaskOffers { get; set; }
+        public DbSet<TaskAttachment> TaskAttachments { get; set; }
+        public DbSet<MarketplacePayment> MarketplacePayments { get; set; }
+        public DbSet<TaskCorrectionRequest> TaskCorrectionRequests { get; set; }
+        public DbSet<MarketplaceRating> MarketplaceRatings { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -103,6 +115,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
             // =========================
             modelBuilder.Entity<TaskU>(entity =>
             {
+                entity.ToTable("legacy_tasks");
                 entity.HasOne(t => t.Student)
                       .WithMany(u => u.TasksAsStudent)
                       .HasForeignKey(t => t.StudentId)
@@ -119,6 +132,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
             // =========================
             modelBuilder.Entity<Offer>(entity =>
             {
+                entity.ToTable("legacy_offers");
                 entity.HasOne(o => o.Task)
                       .WithMany(t => t.Offers)
                       .HasForeignKey(o => o.TaskId)
@@ -138,6 +152,8 @@ namespace LinaTask.Infrastructure.DataBaseContext
             // =========================
             modelBuilder.Entity<Payment>(entity =>
             {
+                entity.ToTable("legacy_payments");
+
                 entity.HasOne(p => p.TaskU)
                       .WithMany(t => t.Payments)
                       .HasForeignKey(p => p.TaskId)
@@ -349,7 +365,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(prt => prt.ExpiresAt).HasColumnName("expires_at").IsRequired();
                 entity.Property(prt => prt.IsUsed).HasColumnName("is_used").HasDefaultValue(false);
                 entity.Property(prt => prt.UsedAt).HasColumnName("used_at");
-                entity.Property(prt => prt.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(prt => prt.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP").ValueGeneratedOnAdd(); ;
                 entity.Property(prt => prt.IpAddress).HasColumnName("ip_address").HasMaxLength(45);
                 entity.Property(prt => prt.UserAgent).HasColumnName("user_agent").HasColumnType("text");
 
@@ -375,7 +391,22 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(uap => uap.EducationLevel).HasMaxLength(50).IsRequired();
                 entity.Property(uap => uap.AcademicStatus).HasMaxLength(30).IsRequired();
                 entity.Property(uap => uap.StudyArea).HasMaxLength(100);
-                entity.Property(uap => uap.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(uap => uap.CreatedAt)
+                  .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                  .ValueGeneratedOnAdd();
+
+                entity.Property(uap => uap.RoleId)
+                      .HasColumnName("role_id")
+                      .IsRequired();
+
+                entity.Property(uap => uap.ProfessionalDescription)
+                      .HasColumnName("professional_description")
+                      .HasColumnType("text");
+
+                entity.HasOne(uap => uap.Role)
+                      .WithMany()
+                      .HasForeignKey(uap => uap.RoleId)
+                      .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasOne(uap => uap.User)
                       .WithMany(u => u.AcademicProfiles)
@@ -401,7 +432,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(ua => ua.CityId).HasColumnName("city_id").IsRequired();
                 entity.Property(ua => ua.Address).HasColumnName("address").HasMaxLength(255).IsRequired();
                 entity.Property(ua => ua.IsPrimary).HasColumnName("is_primary").HasDefaultValue(false);
-                entity.Property(ua => ua.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(ua => ua.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP").ValueGeneratedOnAdd(); ;
 
                 entity.HasOne(ua => ua.User)
                       .WithMany(u => u.Addresses)
@@ -532,7 +563,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.Property(sp => sp.Description).HasColumnName("description").HasMaxLength(500);
                 entity.Property(sp => sp.DataType).HasColumnName("data_type").HasMaxLength(50).HasDefaultValue("string");
                 entity.Property(sp => sp.IsActive).HasColumnName("is_active").HasDefaultValue(true);
-                entity.Property(sp => sp.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(sp => sp.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP").ValueGeneratedOnAdd(); ;
                 entity.Property(sp => sp.UpdatedAt).HasColumnName("updated_at");
 
                 entity.HasIndex(sp => sp.ParamKey).IsUnique().HasDatabaseName("idx_system_parameters_key");
@@ -797,6 +828,147 @@ namespace LinaTask.Infrastructure.DataBaseContext
                     .WithMany()
                     .HasForeignKey(e => e.TeacherId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            //Marketplace
+            modelBuilder.Entity<MarketplaceTask>(e =>
+            {
+                e.ToTable("tasks");
+                e.HasKey(t => t.Id);
+
+                e.Property(t => t.Status)
+                    .HasConversion<string>()
+                    .HasColumnName("status");
+
+                e.Property(t => t.WorkType)
+                    .HasConversion<string>()
+                    .HasColumnName("work_type");
+
+                e.Property(t => t.AcademicLevel)
+                    .HasConversion<string>()
+                    .HasColumnName("academic_level");
+
+                e.Property(t => t.RequiredFormat)
+                    .HasConversion<string>()
+                    .HasColumnName("required_format");
+
+                e.HasOne(t => t.Student)
+                    .WithMany()
+                    .HasForeignKey(t => t.StudentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(t => t.AssignedTeacher)
+                    .WithMany()
+                    .HasForeignKey(t => t.AssignedTeacherId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasOne(t => t.SelectedOffer)
+                    .WithMany()
+                    .HasForeignKey(t => t.SelectedOfferId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasMany(t => t.Offers)
+                    .WithOne(o => o.Task)
+                    .HasForeignKey(o => o.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasMany(t => t.Attachments)
+                    .WithOne(a => a.Task)
+                    .HasForeignKey(a => a.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasMany(t => t.CorrectionRequests)
+                    .WithOne(c => c.Task)
+                    .HasForeignKey(c => c.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── TaskOffer ────────────────────────────────────────────────
+            modelBuilder.Entity<TaskOffer>(e =>
+            {
+                e.ToTable("offers");
+                e.HasKey(o => o.Id);
+
+                e.Property(o => o.Status)
+                    .HasConversion<string>()
+                    .HasColumnName("status");
+
+                e.HasIndex(o => new { o.TaskId, o.TeacherId })
+                    .IsUnique();
+
+                e.HasOne(o => o.Teacher)
+                    .WithMany()
+                    .HasForeignKey(o => o.TeacherId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── TaskAttachment ───────────────────────────────────────────
+            modelBuilder.Entity<TaskAttachment>(e =>
+            {
+                e.ToTable("task_attachments");
+                e.HasKey(a => a.Id);
+
+                e.HasOne(a => a.Uploader)
+                    .WithMany()
+                    .HasForeignKey(a => a.UploadedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── MarketplacePayment ───────────────────────────────────────
+            modelBuilder.Entity<MarketplacePayment>(e =>
+            {
+                e.ToTable("payments");
+                e.HasKey(p => p.Id);
+
+                e.Property(p => p.Status)
+                    .HasConversion<string>()
+                    .HasColumnName("status");
+
+                e.HasOne(p => p.Student)
+                    .WithMany()
+                    .HasForeignKey(p => p.StudentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.Teacher)
+                    .WithMany()
+                    .HasForeignKey(p => p.TeacherId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── TaskCorrectionRequest ────────────────────────────────────
+            modelBuilder.Entity<TaskCorrectionRequest>(e =>
+            {
+                e.ToTable("task_correction_requests");
+                e.HasKey(c => c.Id);
+
+                e.Property(c => c.Status)
+                    .HasConversion<string>()
+                    .HasColumnName("status");
+
+                e.HasOne(c => c.Student)
+                    .WithMany()
+                    .HasForeignKey(c => c.StudentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── MarketplaceRating ────────────────────────────────────────
+            modelBuilder.Entity<MarketplaceRating>(e =>
+            {
+                e.ToTable("marketplace_ratings");
+                e.HasKey(r => r.Id);
+
+                e.HasIndex(r => new { r.TaskId, r.RatedBy, r.RatedUser })
+                    .IsUnique();
+
+                e.HasOne(r => r.Rater)
+                    .WithMany()
+                    .HasForeignKey(r => r.RatedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(r => r.RatedUserNavigation)
+                    .WithMany()
+                    .HasForeignKey(r => r.RatedUser)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
         }

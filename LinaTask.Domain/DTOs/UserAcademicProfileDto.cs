@@ -15,7 +15,9 @@ namespace LinaTask.Domain.DTOs
         public int? GraduationYear { get; set; }
         public string? StudyArea { get; set; }
         public string AcademicStatus { get; set; } = string.Empty;
-
+        public string? ProfessionalDescription { get; set; }
         public DateTime CreatedAt { get; set; }
+        public Guid RoleId { get; set; }
+        public string RoleName { get; set; } = string.Empty;
     }
 }

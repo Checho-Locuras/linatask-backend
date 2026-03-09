@@ -102,5 +102,20 @@ namespace LinaTask.Infrastructure.Repositories
 
             return await query.CountAsync();
         }
+
+        public async Task<IEnumerable<TutoringSession>> GetSessionsNeedingReminderAsync(DateTime from, DateTime to)
+        {
+            return await _context.TutoringSessions
+                .Include(s => s.Student)
+                .Include(s => s.Teacher)
+                .Include(s => s.Subject)
+                .Where(s =>
+                    s.StartTime >= from &&
+                    s.StartTime <= to &&
+                    s.ReminderSent == false &&
+                    (s.Status == SessionStatus.Scheduled || s.Status == SessionStatus.Ready)
+                )
+                .ToListAsync();
+        }
     }
 }

@@ -18,5 +18,6 @@ namespace LinaTask.Domain.Interfaces
         // Ratings
         Task<SessionRating> CreateRatingAsync(SessionRating rating);
         Task<SessionRating?> GetRatingBySessionIdAsync(Guid sessionId);
+        Task<IEnumerable<TutoringSession>> GetSessionsNeedingReminderAsync(DateTime from, DateTime to);
     }
 }

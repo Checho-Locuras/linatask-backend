@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace LinaTask.Infrastructure.Repositories
@@ -217,7 +218,13 @@ namespace LinaTask.Infrastructure.Repositories
             ReferenceId = n.ReferenceId,
             ReferenceType = n.ReferenceType,
             ActionUrl = n.ActionUrl,
-            CreatedAt = n.CreatedAt
+            CreatedAt = n.CreatedAt,
+            // ← nuevo
+            Actions = string.IsNullOrEmpty(n.ActionsJson)
+                ? null
+                : JsonSerializer.Deserialize<List<NotificationActionDto>>(
+                    n.ActionsJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
         };
     }
 }

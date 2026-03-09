@@ -16,6 +16,7 @@ namespace LinaTask.Domain.Interfaces
         Task<Institution?> GetInstitutionByIdAsync(Guid institutionId);
         Task<Country?> GetCountryByIdAsync(Guid countryId);
         Task<Department?> GetDepartmentByIdAsync(Guid departmentId);
+        Task<bool> ExistsInstitutionAsync(Guid id);
 
     }
 }

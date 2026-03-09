@@ -1,4 +1,4 @@
-﻿using LinaTask.Application.Services.Interfaces;
+﻿using LinaTask.Domain.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;

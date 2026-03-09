@@ -18,6 +18,16 @@ namespace LinaTask.Domain.DTOs
         public string? ReferenceType { get; set; }
         public string? ActionUrl { get; set; }
         public DateTime CreatedAt { get; set; }
+        public List<NotificationActionDto>? Actions { get; set; }
+    }
+
+    public class NotificationActionDto
+    {
+        public string Label { get; set; } = string.Empty;   // "Aceptar", "Rechazar"
+        public string ActionType { get; set; } = string.Empty; // "accept_session", "reject_session"
+        public string? Url { get; set; }                    // navegación opcional
+        public string? Payload { get; set; }                // datos extra en JSON (ej: sessionId)
+        public string Style { get; set; } = "primary";      // "primary" | "danger" | "ghost"
     }
 
     /// <summary>Resumen liviano para el badge de la campana</summary>
@@ -38,6 +48,7 @@ namespace LinaTask.Domain.DTOs
         public Guid? ReferenceId { get; set; }
         public string? ReferenceType { get; set; }
         public string? ActionUrl { get; set; }
+        public List<NotificationActionDto>? Actions { get; set; }
     }
 
     /// <summary>Parámetros de paginación / filtrado para GET /notifications</summary>
@@ -56,5 +67,13 @@ namespace LinaTask.Domain.DTOs
         public int Page { get; set; }
         public int PageSize { get; set; }
         public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    }
+
+    public class NotificationActionResult
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+        public string? Error { get; set; }
+        public string? RedirectUrl { get; set; }
     }
 }

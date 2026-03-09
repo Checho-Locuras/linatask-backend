@@ -121,20 +121,29 @@ namespace LinaTask.Infrastructure.Repositories
 
         public async Task<User> UpdateAsync(User user)
         {
-            if (user == null)
-                throw new ArgumentNullException(nameof(user));
+            // DEBUG TEMPORAL
+            foreach (var entry in _context.ChangeTracker.Entries())
+            {
+                if (entry.State != EntityState.Unchanged && entry.State != EntityState.Detached)
+                {
+                    Console.WriteLine($"[TRACKER] {entry.Entity.GetType().Name} | State: {entry.State}");
+                    foreach (var prop in entry.Properties)
+                    {
+                        if (prop.IsModified || entry.State == EntityState.Added)
+                            Console.WriteLine($"  {prop.Metadata.Name}: Original=[{prop.OriginalValue}] Current=[{prop.CurrentValue}]");
+                    }
+                }
+            }
+            // FIN DEBUG
 
             try
             {
-                _context.Users.Update(user);
                 await _context.SaveChangesAsync();
-                return user;
+                return await GetByIdAsync(user.Id) ?? user;
             }
-            catch (Exception ex)
+            catch (DbUpdateConcurrencyException ex)
             {
-                // Considera usar un logger aquí
-                // _logger.LogError(ex, "Error al actualizar usuario");
-                throw new ApplicationException($"Error al actualizar el usuario: {ex.Message}", ex);
+                throw new ApplicationException("El usuario fue modificado o eliminado por otro proceso.", ex);
             }
         }
 
@@ -269,6 +278,75 @@ namespace LinaTask.Infrastructure.Repositories
             return await _context.UserRoles
                 .Include(ur => ur.Role)
                 .AnyAsync(ur => ur.UserId == userId && ur.Role.Name.ToLower() == roleName.ToLower());
+        }
+
+        public async Task DeleteUserRolesAsync(Guid userId)
+        {
+            var roles = await _context.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .ToListAsync();
+
+            _context.UserRoles.RemoveRange(roles);
+        }
+
+        public async Task SyncAcademicProfilesAsync(Guid userId, List<UserAcademicProfile> profiles)
+        {
+            // 1. Traer los perfiles actuales de la BD
+            var existing = await _context.UserAcademicProfiles
+                .Where(p => p.UserId == userId)
+                .ToListAsync();
+
+            var incomingIds = profiles
+                .Where(p => p.Id != Guid.Empty)
+                .Select(p => p.Id)
+                .ToHashSet();
+
+            // 2. Eliminar los que ya no vienen
+            var toDelete = existing
+                .Where(p => !incomingIds.Contains(p.Id))
+                .ToList();
+
+            if (toDelete.Any())
+                _context.UserAcademicProfiles.RemoveRange(toDelete);
+
+            // 3. Insertar o actualizar
+            foreach (var profile in profiles)
+            {
+                var existingProfile = existing.FirstOrDefault(p => p.Id == profile.Id);
+
+                if (existingProfile != null)
+                {
+                    // Actualizar el existente
+                    existingProfile.RoleId = profile.RoleId;
+                    existingProfile.InstitutionId = profile.InstitutionId;
+                    existingProfile.EducationLevel = profile.EducationLevel;
+                    existingProfile.CurrentSemester = profile.CurrentSemester;
+                    existingProfile.CurrentGrade = profile.CurrentGrade;
+                    existingProfile.GraduationYear = profile.GraduationYear;
+                    existingProfile.StudyArea = profile.StudyArea;
+                    existingProfile.AcademicStatus = profile.AcademicStatus;
+                    existingProfile.ProfessionalDescription = profile.ProfessionalDescription;
+                }
+                else
+                {
+                    // Insertar nuevo directamente al DbSet
+                    _context.UserAcademicProfiles.Add(new UserAcademicProfile
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        RoleId = profile.RoleId,
+                        InstitutionId = profile.InstitutionId,
+                        EducationLevel = profile.EducationLevel,
+                        CurrentSemester = profile.CurrentSemester,
+                        CurrentGrade = profile.CurrentGrade,
+                        GraduationYear = profile.GraduationYear,
+                        StudyArea = profile.StudyArea,
+                        AcademicStatus = profile.AcademicStatus,
+                        ProfessionalDescription = profile.ProfessionalDescription,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
         }
     }
 }

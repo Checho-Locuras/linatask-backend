@@ -18,6 +18,7 @@ namespace LinaTask.Domain.Models
         public string? ReferenceType { get; set; }
         public string? ActionUrl { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? ActionsJson { get; set; }
     }
 
     public static class NotificationType

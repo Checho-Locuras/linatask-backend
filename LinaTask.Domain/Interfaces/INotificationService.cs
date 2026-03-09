@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace LinaTask.Application.Services.Interfaces
+namespace LinaTask.Domain.Interfaces
 {
     public interface INotificationService
     {
@@ -27,5 +27,13 @@ namespace LinaTask.Application.Services.Interfaces
         Task NotifyNewMessageAsync(Guid recipientId, string senderName, Guid conversationId);
         Task NotifyPaymentReceivedAsync(Guid teacherId, string studentName,
                                          Guid paymentId, decimal amount);
+
+        Task NotifySessionReminderAsync(
+            Guid userId,
+            string otherName,
+            Guid sessionId,
+            string subjectName,
+            DateTime sessionDate,
+            int minutesBefore);
     }
 }

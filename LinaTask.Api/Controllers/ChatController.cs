@@ -32,7 +32,7 @@ namespace LinaTask.Api.Controllers
         }
 
         // POST api/chat/conversations
-        // Body: { "otherUserId": "uuid" }
+        //Body: { "otherUserId": "uuid" }
         [HttpPost("conversations")]
         public async Task<IActionResult> GetOrCreateConversation([FromBody] Guid otherUserId)
         {

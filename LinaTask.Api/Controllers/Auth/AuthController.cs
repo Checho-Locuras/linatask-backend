@@ -127,5 +127,31 @@ namespace LinaTask.Api.Controllers.Auth
                 return StatusCode(500, "Error interno del servidor");
             }
         }
+
+        // En AuthController — agrega el DTO y el endpoint
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            try
+            {
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return Unauthorized();
+
+                await _authService.ChangePasswordAsync(Guid.Parse(userId), dto);
+                return Ok(new { message = "Contraseña actualizada correctamente" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al cambiar contraseña");
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
     }
 }

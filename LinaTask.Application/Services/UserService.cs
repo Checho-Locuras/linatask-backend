@@ -133,7 +133,10 @@ namespace LinaTask.Application.Services
             if (user == null)
                 throw new KeyNotFoundException($"Usuario con ID {id} no encontrado");
 
-            // Actualizar solo los campos que vienen en el DTO
+            // =====================
+            // CAMPOS BÁSICOS
+            // =====================
+
             if (!string.IsNullOrEmpty(updateUserDto.Name))
                 user.Name = updateUserDto.Name;
 
@@ -155,15 +158,109 @@ namespace LinaTask.Application.Services
             if (updateUserDto.IsActive.HasValue)
                 user.IsActive = updateUserDto.IsActive.Value;
 
-            // Si se proporciona una nueva contraseña, hashearla
             if (!string.IsNullOrEmpty(updateUserDto.Password))
                 user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateUserDto.Password);
 
-            // Actualizar roles si se proporcionan
+            // =====================
+            // ROLES
+            // =====================
+
             if (updateUserDto.RoleIds != null && updateUserDto.RoleIds.Any())
-            {
                 await UpdateUserRolesAsync(user, updateUserDto.RoleIds);
+
+            // =====================
+            // DIRECCIONES
+            // =====================
+
+            if (updateUserDto.UserAddresses != null && updateUserDto.UserAddresses.Any())
+            {
+                foreach (var addressDto in updateUserDto.UserAddresses)
+                {
+                    var city = await _locationRepository.GetCityByIdAsync(addressDto.CityId);
+                    if (city == null)
+                        throw new InvalidOperationException($"Ciudad con ID {addressDto.CityId} no encontrada");
+
+                    // Si viene con Id, actualizar la existente
+                    if (addressDto.Id != Guid.Empty)
+                    {
+                        var existing = user.Addresses.FirstOrDefault(a => a.Id == addressDto.Id);
+                        if (existing != null)
+                        {
+                            existing.CityId = addressDto.CityId;
+                            existing.Address = addressDto.Address;
+                            existing.IsPrimary = addressDto.IsPrimary;
+                        }
+                    }
+                    else
+                    {
+                        // Si no tiene Id, es una nueva dirección
+                        user.Addresses.Add(new UserAddress
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = user.Id,
+                            CityId = addressDto.CityId,
+                            Address = addressDto.Address,
+                            IsPrimary = addressDto.IsPrimary,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+
+                // Garantizar que haya una sola dirección primaria
+                var primaryAddresses = user.Addresses.Where(a => a.IsPrimary).ToList();
+                if (primaryAddresses.Count > 1)
+                {
+                    // Dejar solo la última como primaria
+                    foreach (var addr in primaryAddresses.SkipLast(1))
+                        addr.IsPrimary = false;
+                }
+                else if (!primaryAddresses.Any() && user.Addresses.Any())
+                {
+                    user.Addresses.First().IsPrimary = true;
+                }
             }
+
+            // =====================
+            // PERFILES ACADÉMICOS
+            // =====================
+
+            if (updateUserDto.AcademicProfiles != null && updateUserDto.AcademicProfiles.Any())
+            {
+                // Validar que todas las instituciones existen
+                foreach (var profileDto in updateUserDto.AcademicProfiles)
+                {
+                    var institutionExists = await _locationRepository.ExistsInstitutionAsync(profileDto.InstitutionId);
+                    if (!institutionExists)
+                        throw new InvalidOperationException($"Institución con ID {profileDto.InstitutionId} no encontrada");
+                }
+
+                // Construir la lista de perfiles a sincronizar
+                var profilesToSync = updateUserDto.AcademicProfiles.Select(p => new UserAcademicProfile
+                {
+                    Id = p.Id ?? Guid.Empty,
+                    UserId = user.Id,
+                    RoleId = p.RoleId,
+                    InstitutionId = p.InstitutionId,
+                    EducationLevel = p.EducationLevel,
+                    CurrentSemester = p.CurrentSemester,
+                    CurrentGrade = p.CurrentGrade,
+                    GraduationYear = p.GraduationYear,
+                    StudyArea = p.StudyArea,
+                    AcademicStatus = p.AcademicStatus,
+                    ProfessionalDescription = p.ProfessionalDescription
+                }).ToList();
+
+                await _userRepository.SyncAcademicProfilesAsync(user.Id, profilesToSync);
+            }
+
+            // =====================
+            // NORMALIZAR FECHAS
+            // =====================
+            if (user.BirthDate.Kind != DateTimeKind.Utc)
+                user.BirthDate = DateTime.SpecifyKind(user.BirthDate, DateTimeKind.Utc);
+
+            if (user.CreatedAt.Kind != DateTimeKind.Utc)
+                user.CreatedAt = DateTime.SpecifyKind(user.CreatedAt, DateTimeKind.Utc);
 
             var updatedUser = await _userRepository.UpdateAsync(user);
             return MapToDto(updatedUser);
@@ -424,26 +521,33 @@ namespace LinaTask.Application.Services
 
         private async Task UpdateUserRolesAsync(User user, IEnumerable<Guid> roleIds)
         {
-            // Limpiar roles actuales
+            var roleIdList = roleIds.ToList();
+
+            if (!roleIdList.Any())
+                throw new InvalidOperationException("El usuario debe tener al menos un rol");
+
+            // Validar que todos los roles existen sin cargarlos al contexto
+            foreach (var roleId in roleIdList)
+            {
+                var exists = await _roleRepository.ExistsAsync(roleId); // ← solo verificar
+                if (!exists)
+                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
+            }
+
+            // Eliminar roles actuales del contexto (sin SaveChanges)
+            await _userRepository.DeleteUserRolesAsync(user.Id);
             user.UserRoles.Clear();
 
-            // Agregar nuevos roles
-            foreach (var roleId in roleIds)
+            // Agregar nuevos roles solo con FK, sin cargar la entidad Role
+            foreach (var roleId in roleIdList)
             {
-                var role = await _roleRepository.GetByIdAsync(roleId);
-                if (role == null)
-                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado");
-
                 user.UserRoles.Add(new UserRole
                 {
                     UserId = user.Id,
                     RoleId = roleId
+                    // ❌ No asignar la propiedad de navegación Role = ...
                 });
             }
-
-            // Verificar que al menos quede un rol
-            if (!user.UserRoles.Any())
-                throw new InvalidOperationException("El usuario debe tener al menos un rol");
         }
 
         private static UserDto MapToDto(User user)
@@ -472,6 +576,8 @@ namespace LinaTask.Application.Services
                 AcademicProfiles = user.AcademicProfiles?.Select(ap => new UserAcademicProfileDto
                 {
                     Id = ap.Id,
+                    RoleId = ap.RoleId,
+                    RoleName = ap.Role?.Name ?? "",
                     InstitutionId = ap.InstitutionId,
                     InstitutionName = ap.Institution?.Name ?? "",
                     EducationLevel = ap.EducationLevel,

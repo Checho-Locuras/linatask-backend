@@ -25,7 +25,7 @@ namespace LinaTask.Domain.Models
 
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
-        public DateTime? BirthDate { get; set; }   // 👈 NUEVO
+        public DateTime BirthDate { get; set; }   // 👈 NUEVO
 
         [Column(TypeName = "text")]
         public string? ProfilePhoto { get; set; }

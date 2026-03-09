@@ -1,27 +1,28 @@
-﻿using LinaTask.Application.Services.Interfaces;
+﻿using LinaTask.Api.Common;
+using LinaTask.Application.DTOs;
+using LinaTask.Application.Services;
+using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.DTOs;
+using LinaTask.Domain.Enums;
+using LinaTask.Domain.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/notifications")]
     [Authorize]
-    public class NotificationsController : ControllerBase
+    public class NotificationsController : BaseController
     {
         private readonly INotificationService _service;
+        private readonly ITutoringSessionService _sessionService;
 
-        public NotificationsController(INotificationService service)
+        public NotificationsController(INotificationService service, ITutoringSessionService sessionService)
         {
             _service = service;
+            _sessionService = sessionService;
         }
-
-        private Guid CurrentUserId =>
-            Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
-                     ?? User.FindFirstValue("sub")
-                     ?? throw new UnauthorizedAccessException());
 
         // GET api/notifications?isRead=false&page=1&pageSize=20
         [HttpGet]
@@ -79,6 +80,94 @@ namespace LinaTask.Api.Controllers
         {
             var count = await _service.DeleteAllReadAsync(CurrentUserId);
             return Ok(new { deleted = count });
+        }
+
+        [HttpPost("{id}/actions/{actionType}")]
+        [Authorize]
+        public async Task<IActionResult> ExecuteAction(
+            Guid id,
+            string actionType,
+            [FromBody] string? payload)
+        {
+            var userId = CurrentUserId; // tu helper existente
+
+            // 1. Marcar notificación como leída
+            await _service.MarkAsReadAsync(id, userId);
+
+            // 2. Ejecutar acción según el tipo
+            switch (actionType)
+            {
+                case "accept_session":
+                    {
+                        if (!Guid.TryParse(payload, out var sessionId))
+                            return BadRequest(new { message = "Payload inválido" });
+
+                        try
+                        {
+                            await _sessionService.UpdateSessionAsync(sessionId, new UpdateTutoringSessionDto
+                            {
+                                Status = SessionStatus.Ready
+                            });
+                            return Ok(new NotificationActionResult
+                            {
+                                Success = true,
+                                Message = "Sesión aceptada correctamente",
+                                RedirectUrl = "/teacher/sessions"
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            return BadRequest(new NotificationActionResult
+                            {
+                                Success = false,
+                                Error = ex.Message
+                            });
+                        }
+                    }
+
+                case "reject_session":
+                    {
+                        if (!Guid.TryParse(payload, out var sessionId))
+                            return BadRequest(new { message = "Payload inválido" });
+
+                        try
+                        {
+                            await _sessionService.UpdateSessionAsync(sessionId, new UpdateTutoringSessionDto
+                            {
+                                Status = SessionStatus.Cancelled
+                            });
+
+                            return Ok(new NotificationActionResult
+                            {
+                                Success = true,
+                                Message = "Sesión rechazada",
+                                RedirectUrl = "/teacher/sessions"
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            return BadRequest(new NotificationActionResult
+                            {
+                                Success = false,
+                                Error = ex.Message
+                            });
+                        }
+                    }
+
+                case "navigate":
+                    return Ok(new NotificationActionResult
+                    {
+                        Success = true,
+                        RedirectUrl = payload
+                    });
+
+                default:
+                    return BadRequest(new NotificationActionResult
+                    {
+                        Success = false,
+                        Error = $"Acción desconocida: {actionType}"
+                    });
+            }
         }
     }
 }
