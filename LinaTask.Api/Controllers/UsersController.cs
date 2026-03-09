@@ -1,11 +1,14 @@
-﻿using LinaTask.Application.Services.Interfaces;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -17,11 +20,8 @@ namespace LinaTask.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Obtiene todos los usuarios
-        /// </summary>
         [HttpGet("getAllUsers")]
-        [ProducesResponseType(typeof(IEnumerable<UserDto>), StatusCodes.Status200OK)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAllUsers()
         {
             try
@@ -36,12 +36,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un usuario por ID
-        /// </summary>
         [HttpGet("getUserById/{id:guid}")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<UserDto>> GetUserById(Guid id)
         {
             try
@@ -59,12 +55,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un usuario por email
-        /// </summary>
         [HttpGet("getUserByEmail/{email}")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.VIEW")]
         public async Task<ActionResult<UserDto>> GetUserByEmail(string email)
         {
             try
@@ -82,12 +74,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea un nuevo usuario
-        /// </summary>
         [HttpPost("createUser")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [PermissionAuthorize("USER.CREATE")]
         public async Task<ActionResult<UserDto>> CreateUser([FromBody] CreateUserDto createUserDto)
         {
             try
@@ -102,12 +90,7 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza un usuario existente
-        /// </summary>
         [HttpPut("updateUser/{id:guid}")]
-        [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<UserDto>> UpdateUser(Guid id, [FromBody] UpdateUserDto updateUserDto)
         {
             try
@@ -126,12 +109,8 @@ namespace LinaTask.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina un usuario
-        /// </summary>
         [HttpDelete("deleteUser/{id:guid}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [PermissionAuthorize("USER.DELETE")]
         public async Task<IActionResult> DeleteUser(Guid id)
         {
             try
@@ -145,6 +124,124 @@ namespace LinaTask.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al eliminar usuario {UserId}", id);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        [HttpGet("{userId:guid}/addresses")]
+        [PermissionAuthorize("USER.VIEW")]
+        public async Task<ActionResult<IEnumerable<UserAddressDto>>> GetUserAddresses(Guid userId)
+        {
+            try
+            {
+                var addresses = await _userService.GetUserAddressesAsync(userId);
+                return Ok(addresses);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener direcciones del usuario {UserId}", userId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        [HttpPost("{userId:guid}/addresses")]
+        [PermissionAuthorize("USER.EDIT")]
+        public async Task<ActionResult<UserAddressDto>> AddAddress(
+            Guid userId,
+            [FromBody] CreateAddressDto createAddressDto)
+        {
+            try
+            {
+                var address = await _userService.AddAddressAsync(userId, createAddressDto);
+                return CreatedAtAction(
+                    nameof(GetUserAddresses),
+                    new { userId },
+                    address);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al agregar dirección al usuario {UserId}", userId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        [HttpPut("addresses/{addressId:guid}")]
+        [PermissionAuthorize("USER.EDIT")]
+        public async Task<ActionResult<UserAddressDto>> UpdateAddress(
+            Guid addressId,
+            [FromBody] UpdateAddressDto updateAddressDto)
+        {
+            try
+            {
+                var address = await _userService.UpdateAddressAsync(addressId, updateAddressDto);
+                return Ok(address);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al actualizar dirección {AddressId}", addressId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        [HttpDelete("addresses/{addressId:guid}")]
+        [PermissionAuthorize("USER.EDIT")]
+        public async Task<IActionResult> DeleteAddress(Guid addressId)
+        {
+            try
+            {
+                var deleted = await _userService.DeleteAddressAsync(addressId);
+                if (!deleted)
+                    return NotFound($"Dirección con ID {addressId} no encontrada");
+
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al eliminar dirección {AddressId}", addressId);
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+        [HttpPut("addresses/{addressId:guid}/set-primary")]
+        [PermissionAuthorize("USER.EDIT")]
+        public async Task<ActionResult<UserAddressDto>> SetPrimaryAddress(Guid addressId)
+        {
+            try
+            {
+                var address = await _userService.SetPrimaryAddressAsync(addressId);
+                return Ok(address);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al establecer dirección primaria {AddressId}", addressId);
                 return StatusCode(500, "Error interno del servidor");
             }
         }

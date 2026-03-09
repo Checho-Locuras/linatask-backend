@@ -38,5 +38,11 @@ namespace LinaTask.Domain.Models
         public string Status { get; set; } = "Pending";
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Required]
+        public Guid TeacherId { get; set; }
+
+        [ForeignKey("TeacherId")]
+        public virtual User Teacher { get; set; }
     }
 }

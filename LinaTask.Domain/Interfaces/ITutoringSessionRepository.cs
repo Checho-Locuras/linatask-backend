@@ -1,4 +1,5 @@
-﻿using LinaTask.Domain.Models;
+﻿using LinaTask.Domain.Enums;
+using LinaTask.Domain.Models;
 
 namespace LinaTask.Domain.Interfaces
 {
@@ -7,12 +8,16 @@ namespace LinaTask.Domain.Interfaces
         Task<IEnumerable<TutoringSession>> GetAllAsync();
         Task<IEnumerable<TutoringSession>> GetByStudentIdAsync(Guid studentId);
         Task<IEnumerable<TutoringSession>> GetByTeacherIdAsync(Guid teacherId);
-        Task<IEnumerable<TutoringSession>> GetByStatusAsync(string status);
+        Task<IEnumerable<TutoringSession>> GetByStatusAsync(SessionStatus status);
         Task<IEnumerable<TutoringSession>> GetUpcomingSessionsAsync(Guid? userId = null);
         Task<TutoringSession?> GetByIdAsync(Guid id);
         Task<TutoringSession> CreateAsync(TutoringSession session);
         Task<TutoringSession> UpdateAsync(TutoringSession session);
         Task<bool> DeleteAsync(Guid id);
-        Task<int> GetSessionCountByTeacherAsync(Guid teacherId, DateTime? startDate = null);
+
+        // Ratings
+        Task<SessionRating> CreateRatingAsync(SessionRating rating);
+        Task<SessionRating?> GetRatingBySessionIdAsync(Guid sessionId);
+        Task<IEnumerable<TutoringSession>> GetSessionsNeedingReminderAsync(DateTime from, DateTime to);
     }
 }

@@ -2,9 +2,11 @@
 using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace LinaTask.Application.Services
 {
@@ -63,7 +65,7 @@ namespace LinaTask.Application.Services
 
             // Validar que el estudiante existe
             var student = await _userRepository.GetByIdAsync(createPaymentDto.StudentId);
-            if (student == null || student.Role != "student")
+            if (student == null || !student.UserRoles.Any(ur => ur.Role.Name == "student"))
                 throw new InvalidOperationException("Invalid student ID");
 
             // Calcular fees
@@ -111,6 +113,8 @@ namespace LinaTask.Application.Services
 
                 payment.Status = updatePaymentDto.Status;
             }
+
+            payment.CreatedAt = payment.CreatedAt.ToUniversalTime();
 
             var updatedPayment = await _paymentRepository.UpdateAsync(payment);
             return MapToDto(updatedPayment);

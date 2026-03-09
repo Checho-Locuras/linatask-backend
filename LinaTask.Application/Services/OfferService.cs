@@ -2,6 +2,8 @@
 using LinaTask.Application.Services.Interfaces;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
+using LinaTask.Infrastructure.Repositories;
+using System.Threading.Tasks;
 
 namespace LinaTask.Application.Services
 {
@@ -54,7 +56,7 @@ namespace LinaTask.Application.Services
 
             // Validar que el profesor existe
             var teacher = await _userRepository.GetByIdAsync(createOfferDto.TeacherId);
-            if (teacher == null || teacher.Role != "teacher")
+            if (teacher == null || !teacher.UserRoles.Any(ur => ur.Role.Name == "teacher"))
                 throw new InvalidOperationException("Invalid teacher ID");
 
             // Validar que no exista ya una oferta del mismo profesor para esta tarea
@@ -91,6 +93,8 @@ namespace LinaTask.Application.Services
             if (!string.IsNullOrEmpty(updateOfferDto.Status))
                 offer.Status = updateOfferDto.Status;
 
+            offer.CreatedAt = offer.CreatedAt.ToUniversalTime();
+
             var updatedOffer = await _offerRepository.UpdateAsync(offer);
             return MapToDto(updatedOffer);
         }
@@ -112,7 +116,7 @@ namespace LinaTask.Application.Services
                 Price = offer.Price,
                 Message = offer.Message,
                 Status = offer.Status,
-                CreatedAt = offer.CreatedAt
+                CreatedAt = offer.CreatedAt, 
             };
         }
     }

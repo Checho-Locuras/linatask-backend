@@ -1,12 +1,14 @@
-﻿using LinaTask.Application.DTOs;
-using LinaTask.Application.Services;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class SubjectsController : ControllerBase
     {
         private readonly ISubjectService _subjectService;
@@ -19,6 +21,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getAllSubjects")]
+        [PermissionAuthorize("SUBJECT.VIEW")]
         public async Task<ActionResult<IEnumerable<SubjectDto>>> GetAllSubjects()
         {
             try
@@ -34,6 +37,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getActiveSubjects")]
+        [PermissionAuthorize("SUBJECT.VIEW")]
         public async Task<ActionResult<IEnumerable<SubjectDto>>> GetActiveSubjects()
         {
             try
@@ -49,6 +53,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getSubjectsByCategory/{category}")]
+        [PermissionAuthorize("SUBJECT.VIEW")]
         public async Task<ActionResult<IEnumerable<SubjectDto>>> GetSubjectsByCategory(string category)
         {
             try
@@ -64,6 +69,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getSubjectById/{id:guid}")]
+        [PermissionAuthorize("SUBJECT.VIEW")]
         public async Task<ActionResult<SubjectDto>> GetSubjectById(Guid id)
         {
             try
@@ -82,6 +88,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPost("createSubject")]
+        [PermissionAuthorize("SUBJECT.CREATE")]
         public async Task<ActionResult<SubjectDto>> CreateSubject([FromBody] CreateSubjectDto createSubjectDto)
         {
             try
@@ -101,6 +108,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPut("updateSubject/{id:guid}")]
+        [PermissionAuthorize("SUBJECT.EDIT")]
         public async Task<ActionResult<SubjectDto>> UpdateSubject(Guid id, [FromBody] UpdateSubjectDto updateSubjectDto)
         {
             try
@@ -124,6 +132,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpDelete("deleteSubject/{id:guid}")]
+        [PermissionAuthorize("SUBJECT.DELETE")]
         public async Task<IActionResult> DeleteSubject(Guid id)
         {
             try

@@ -1,11 +1,14 @@
-﻿using LinaTask.Application.DTOs;
+﻿using LinaTask.Api.Attributes;
+using LinaTask.Application.DTOs;
 using LinaTask.Application.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LinaTask.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TasksController : ControllerBase
     {
         private readonly ITaskService _taskService;
@@ -18,6 +21,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getAllTasks")]
+        [PermissionAuthorize("TASK.VIEW")]
         public async Task<ActionResult<IEnumerable<TaskDto>>> GetAllTasks()
         {
             try
@@ -33,6 +37,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTaskById/{id:guid}")]
+        [PermissionAuthorize("TASK.VIEW")]
         public async Task<ActionResult<TaskDto>> GetTaskById(Guid id)
         {
             try
@@ -51,6 +56,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTasksByStudentId/{studentId:guid}")]
+        [PermissionAuthorize("TASK.VIEW")]
         public async Task<ActionResult<IEnumerable<TaskDto>>> GetTasksByStudentId(Guid studentId)
         {
             try
@@ -66,6 +72,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTasksByStatus/{status}")]
+        [PermissionAuthorize("TASK.VIEW")]
         public async Task<ActionResult<IEnumerable<TaskDto>>> GetTasksByStatus(string status)
         {
             try
@@ -81,6 +88,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPost("createTask")]
+        [PermissionAuthorize("TASK.CREATE")]
         public async Task<ActionResult<TaskDto>> CreateTask([FromBody] CreateTaskDto createTaskDto)
         {
             try
@@ -100,6 +108,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpPut("updateTask/{id:guid}")]
+        [PermissionAuthorize("TASK.EDIT")]
         public async Task<ActionResult<TaskDto>> UpdateTask(Guid id, [FromBody] UpdateTaskDto updateTaskDto)
         {
             try
@@ -119,6 +128,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpDelete("deleteTask/{id:guid}")]
+        [PermissionAuthorize("TASK.DELETE")]
         public async Task<IActionResult> DeleteTask(Guid id)
         {
             try
