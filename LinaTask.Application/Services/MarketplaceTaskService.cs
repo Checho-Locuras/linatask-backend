@@ -173,19 +173,18 @@ namespace LinaTask.Application.Services
         }
 
         // ── PRECIO SUGERIDO ────────────────────────────────────
-        private static decimal CalculateSuggestedPrice(
-            WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline)
+        private static decimal CalculateSuggestedPrice(WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline)
         {
             decimal base_ = workType switch
             {
-                WorkType.Essay => 30_000,
-                WorkType.Workshop => 25_000,
-                WorkType.Exam => 40_000,
-                WorkType.Project => 60_000,
-                WorkType.Programming => 70_000,
-                WorkType.Research => 50_000,
-                WorkType.Presentation => 35_000,
-                _ => 25_000
+                WorkType.Essay => 30000,
+                WorkType.Workshop => 25000,
+                WorkType.Exam => 40000,
+                WorkType.Project => 60000,
+                WorkType.Programming => 70000,
+                WorkType.Research => 50000,
+                WorkType.Presentation => 35000,
+                _ => 25000
             };
 
             decimal levelFactor = level switch
@@ -198,10 +197,15 @@ namespace LinaTask.Application.Services
             };
 
             var hoursUntilDeadline = (deadline - DateTime.UtcNow).TotalHours;
-            decimal urgencyFactor = isUrgent || hoursUntilDeadline < 24 ? 1.5m :
-                                    hoursUntilDeadline < 72 ? 1.2m : 1.0m;
 
-            return Math.Round(base_ * levelFactor * urgencyFactor, -3); // redondear a miles
+            decimal urgencyFactor =
+                isUrgent || hoursUntilDeadline < 24 ? 1.5m :
+                hoursUntilDeadline < 72 ? 1.2m :
+                1.0m;
+
+            var price = base_ * levelFactor * urgencyFactor;
+
+            return Math.Round(price / 1000m, 0) * 1000m; // redondeo a miles
         }
 
         // ── MAPPER ─────────────────────────────────────────────

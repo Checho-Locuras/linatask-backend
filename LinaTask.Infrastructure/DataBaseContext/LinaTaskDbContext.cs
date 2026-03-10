@@ -15,9 +15,6 @@ namespace LinaTask.Infrastructure.DataBaseContext
         // =========================
         public DbSet<User> Users { get; set; }
         public DbSet<TeacherProfile> TeacherProfiles { get; set; }
-        public DbSet<TaskU> Tasks { get; set; }
-        public DbSet<Offer> Offers { get; set; }
-        public DbSet<Payment> Payments { get; set; }
         public DbSet<TutoringSession> TutoringSessions { get; set; }
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<TeacherSubject> TeacherSubjects { get; set; }
@@ -108,66 +105,6 @@ namespace LinaTask.Infrastructure.DataBaseContext
                 entity.HasOne(tp => tp.User)
                       .WithOne(u => u.TeacherProfile)
                       .HasForeignKey<TeacherProfile>(tp => tp.UserId);
-            });
-
-            // =========================
-            // TASK
-            // =========================
-            modelBuilder.Entity<TaskU>(entity =>
-            {
-                entity.ToTable("legacy_tasks");
-                entity.HasOne(t => t.Student)
-                      .WithMany(u => u.TasksAsStudent)
-                      .HasForeignKey(t => t.StudentId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.Property(t => t.Title).HasMaxLength(150);
-                entity.Property(t => t.Subject).HasMaxLength(100);
-                entity.Property(t => t.Status).HasMaxLength(30);
-                entity.Property(t => t.Budget).HasColumnType("decimal(10,2)");
-            });
-
-            // =========================
-            // OFFER
-            // =========================
-            modelBuilder.Entity<Offer>(entity =>
-            {
-                entity.ToTable("legacy_offers");
-                entity.HasOne(o => o.Task)
-                      .WithMany(t => t.Offers)
-                      .HasForeignKey(o => o.TaskId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.HasOne(o => o.Teacher)
-                      .WithMany(u => u.Offers)
-                      .HasForeignKey(o => o.TeacherId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.Property(o => o.Price).HasColumnType("decimal(10,2)");
-                entity.Property(o => o.Status).HasMaxLength(30);
-            });
-
-            // =========================
-            // PAYMENT
-            // =========================
-            modelBuilder.Entity<Payment>(entity =>
-            {
-                entity.ToTable("legacy_payments");
-
-                entity.HasOne(p => p.TaskU)
-                      .WithMany(t => t.Payments)
-                      .HasForeignKey(p => p.TaskId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.HasOne(p => p.Student)
-                      .WithMany(u => u.PaymentsAsStudent)
-                      .HasForeignKey(p => p.StudentId)
-                      .OnDelete(DeleteBehavior.Restrict);
-
-                entity.Property(p => p.Amount).HasColumnType("decimal(10,2)");
-                entity.Property(p => p.PlatformFee).HasColumnType("decimal(10,2)");
-                entity.Property(p => p.TeacherAmount).HasColumnType("decimal(10,2)");
-                entity.Property(p => p.Status).HasMaxLength(30);
             });
 
             // =========================
@@ -833,7 +770,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
             //Marketplace
             modelBuilder.Entity<MarketplaceTask>(e =>
             {
-                e.ToTable("tasks");
+                e.ToTable("legacy_tasks");
                 e.HasKey(t => t.Id);
 
                 e.Property(t => t.Status)
@@ -886,7 +823,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
             // ── TaskOffer ────────────────────────────────────────────────
             modelBuilder.Entity<TaskOffer>(e =>
             {
-                e.ToTable("offers");
+                e.ToTable("legacy_offers");
                 e.HasKey(o => o.Id);
 
                 e.Property(o => o.Status)
@@ -917,7 +854,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
             // ── MarketplacePayment ───────────────────────────────────────
             modelBuilder.Entity<MarketplacePayment>(e =>
             {
-                e.ToTable("payments");
+                e.ToTable("legacy_payments");
                 e.HasKey(p => p.Id);
 
                 e.Property(p => p.Status)

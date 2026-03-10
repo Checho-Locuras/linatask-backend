@@ -69,9 +69,18 @@ namespace LinaTask.Infrastructure.Repositories
 
         public async Task<MarketplaceTask> CreateAsync(MarketplaceTask task)
         {
-            _context.MarketplaceTasks.Add(task);
-            await _context.SaveChangesAsync();
-            return (await GetByIdAsync(task.Id))!;
+            try
+            {
+                _context.MarketplaceTasks.Add(task);
+                await _context.SaveChangesAsync();
+                return (await GetByIdAsync(task.Id))!;
+
+            }catch(Exception e)
+            {
+               
+            }
+            return null;
+           
         }
 
         public async Task<MarketplaceTask> UpdateAsync(MarketplaceTask task)

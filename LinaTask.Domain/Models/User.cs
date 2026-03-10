@@ -53,9 +53,6 @@ namespace LinaTask.Domain.Models
 
         // Propiedades de navegación
         public virtual TeacherProfile TeacherProfile { get; set; }
-        public virtual ICollection<TaskU> TasksAsStudent { get; set; }
-        public virtual ICollection<Offer> Offers { get; set; }
-        public virtual ICollection<Payment> PaymentsAsStudent { get; set; }
         public virtual ICollection<TutoringSession> TutoringSessionsAsStudent { get; set; }
         public virtual ICollection<TutoringSession> TutoringSessionsAsTeacher { get; set; }
     }

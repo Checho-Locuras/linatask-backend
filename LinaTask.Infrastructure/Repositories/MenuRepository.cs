@@ -162,6 +162,12 @@ namespace LinaTask.Infrastructure.Repositories
                 { "/shared/dashboard",     new[] { "*" } },
                 { "/shared/chat",          new[] { "Chat" } },
                 { "/shared/profile",       new[] { "Profile" } },
+                { "/shared/marketplace",                new[] { "Marketplace" } },
+                { "/shared/marketplace/tasks",          new[] { "Marketplace" } },
+                { "/shared/marketplace/my-tasks",       new[] { "Marketplace" } },
+                { "/shared/marketplace/my-offers",      new[] { "Marketplace" } },
+                { "/shared/marketplace/payments",       new[] { "Marketplace" } },
+                { "/shared/marketplace/history",        new[] { "Marketplace" } },
 
                 // ── ADMIN ────────────────────────────────────────
                 { "/admin/users",          new[] { "Users" } },
