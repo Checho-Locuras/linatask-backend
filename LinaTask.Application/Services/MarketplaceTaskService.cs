@@ -4,6 +4,7 @@ using LinaTask.Domain.Enums;
 using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
 using LinaTask.Infrastructure.Repositories;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using TaskStatus = LinaTask.Domain.Enums.TaskStatus;
 
@@ -15,15 +16,21 @@ namespace LinaTask.Application.Services
         private readonly IUserRepository _userRepo;
         private readonly INotificationService _notificationService;
         private readonly ILogger<MarketplaceTaskService> _logger;
+        private readonly ITaskAttachmentRepository _attachmentRepository;
+        private readonly IFileUploadService _fileUploadService;
 
         public MarketplaceTaskService(
             IMarketplaceTaskRepository taskRepo,
             IUserRepository userRepo,
             INotificationService notificationService,
+            ITaskAttachmentRepository attachmentRepository, 
+            IFileUploadService fileUploadService,
             ILogger<MarketplaceTaskService> logger)
         {
             _taskRepo = taskRepo;
             _userRepo = userRepo;
+            _attachmentRepository = attachmentRepository;
+            _fileUploadService = fileUploadService;
             _notificationService = notificationService;
             _logger = logger;
         }
@@ -261,5 +268,69 @@ namespace LinaTask.Application.Services
                 CreatedAt = o.CreatedAt
             }).ToList()
         };
+
+        public async Task<MarketplaceTaskDto> DeliverAsync(Guid taskId, IFormFile file, Guid teacherId)
+        {
+            var task = await _taskRepo.GetByIdAsync(taskId)
+                ?? throw new KeyNotFoundException("La tarea no existe");
+
+            if (task.AssignedTeacherId != teacherId)
+                throw new UnauthorizedAccessException("No eres el docente asignado");
+
+            if (task.Status != TaskStatus.InProgress && task.Status != TaskStatus.InCorrection && task.Status != TaskStatus.Paid)
+                throw new InvalidOperationException("La tarea no está en progreso");
+
+            if (file == null || file.Length == 0)
+                throw new InvalidOperationException("Debes subir un archivo");
+
+            // ── Subir archivo a Azure Blob ─────────────────────────────
+            var uploadResult = await _fileUploadService.UploadAsync(file, "marketplace-deliveries");
+
+            // ── Registrar adjunto ──────────────────────────────────────
+            var attachment = new TaskAttachment
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                FileName = file.FileName,
+                FileUrl = uploadResult.Url,
+                FileSize = uploadResult.FileSize,
+                MimeType = uploadResult.ContentType,
+                UploadedBy = teacherId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _attachmentRepository.AddAsync(attachment);
+
+            // ── Cambiar estado de la tarea ─────────────────────────────
+            task.Status = TaskStatus.Delivered;
+            task.UpdatedAt = DateTime.UtcNow;
+
+            await _taskRepo.UpdateAsync(task);
+
+            // ── Notificar al estudiante ─────────────────────────────────
+            await _notificationService.CreateAsync(new CreateNotificationDto
+            {
+                UserId = task.StudentId,
+                Title = "📬 Tarea entregada",
+                Message = $"El docente entregó la tarea \"{task.Title}\". Revísala y aprueba o solicita correcciones.",
+                Type = NotificationType.Info,
+                Category = NotificationCategory.Marketplace.Delivered,
+                ReferenceId = taskId,
+                ReferenceType = "MarketplaceTask",
+                ActionUrl = $"/student/tasks/{taskId}",
+                Actions = new List<NotificationActionDto>
+                {
+                    new()
+                    {
+                        Label = "🔍 Revisar tarea",
+                        ActionType = "navigate",
+                        Url = $"/student/tasks/{taskId}",
+                        Style = "primary"
+                    }
+                }
+            });
+
+            return await GetByIdAsync(taskId);
+        }
     }
 }

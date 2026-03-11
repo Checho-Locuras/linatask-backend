@@ -19,8 +19,8 @@ namespace LinaTask.Domain.Interfaces
         Task<bool> DeleteAsync(Guid id);
         Task AssignPermissionsAsync(Guid menuId, IEnumerable<Guid> permissionIds);
         Task<IEnumerable<Guid>> GetPermissionIdsAsync(Guid menuId);
-        Task<IEnumerable<Menu>> GetMenusByRoleIdAsync(Guid roleId);
-        Task<IEnumerable<Menu>> GetMenusByRoleNameAsync(string roleName);
+        Task<IEnumerable<MenuWithChildrenDto>> GetMenusByRoleIdAsync(Guid roleId);
+        Task<IEnumerable<MenuWithChildrenDto>> GetMenusByRoleNameAsync(string roleName);
 
     }
 }

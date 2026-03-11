@@ -78,7 +78,7 @@ namespace LinaTask.Application.Services
                 Title = $"Nueva calificación: {dto.Score}/5 ⭐",
                 Message = $"Recibiste una calificación de {dto.Score}/5 por la tarea \"{task.Title}\".",
                 Type = NotificationType.Info,
-                Category = NotificationCategory.General,
+                Category = NotificationCategory.Marketplace.OfferAccepted,
                 ReferenceId = dto.TaskId,
                 ReferenceType = "MarketplaceTask"
             });

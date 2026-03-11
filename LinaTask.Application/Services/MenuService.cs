@@ -157,43 +157,12 @@ namespace LinaTask.Application.Services
 
         public async Task<IEnumerable<MenuWithChildrenDto>> GetMenusByRoleAsync(Guid roleId)
         {
-            var menus = await _repository.GetMenusByRoleIdAsync(roleId);
-
-            var rootMenus = menus
-                .Where(m => m.ParentId == null)
-                .OrderBy(m => m.Order)
-                .ThenBy(m => m.Name)
-                .ToList();
-
-            return rootMenus.Select(m => BuildHierarchyFiltered(m, menus)).ToList();
+            return await _repository.GetMenusByRoleIdAsync(roleId);
         }
 
         public async Task<IEnumerable<MenuWithChildrenDto>> GetMenusByRoleNameAsync(string roleName)
         {
-            var menus = await _repository.GetMenusByRoleNameAsync(roleName);
-
-            var rootMenus = menus
-                .Where(m => m.ParentId == null)
-                .OrderBy(m => m.Order)
-                .ThenBy(m => m.Name)
-                .ToList();
-
-            return rootMenus.Select(m => BuildHierarchyFiltered(m, menus)).ToList();
+            return await _repository.GetMenusByRoleNameAsync(roleName);
         }
-
-        private MenuWithChildrenDto BuildHierarchyFiltered(Menu menu, IEnumerable<Menu> allowedMenus)
-        {
-            var dto = MapToWithChildrenDto(menu);
-
-            dto.Children = allowedMenus
-                .Where(m => m.ParentId == menu.Id)
-                .OrderBy(m => m.Order)
-                .ThenBy(m => m.Name)
-                .Select(m => BuildHierarchyFiltered(m, allowedMenus))
-                .ToList();
-
-            return dto;
-        }
-
     }
 }

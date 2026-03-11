@@ -55,15 +55,23 @@ namespace LinaTask.Domain.Models.Login
 
     public class AuthResponseDto
     {
-        public string Token { get; set; } = string.Empty;
-        public string RefreshToken { get; set; } = string.Empty;
+        public string Token { get; set; }
+        public string RefreshToken { get; set; }
         public DateTime Expiration { get; set; }
-        public UserDto User { get; set; } = null!;
+        public UserDto User { get; set; }
+        public List<UserRoleDto> Roles { get; set; }
+        public UserRoleDto ActiveRole { get; set; }
+        public List<MenuWithChildrenDto> Menus { get; set; } // menús del rol activo
     }
 
     public class RefreshTokenDto
     {
         public string Token { get; set; } = string.Empty;
         public string RefreshToken { get; set; } = string.Empty;
+    }
+
+    public class SwitchRoleDto
+    {
+        public Guid RoleId { get; set; }
     }
 }

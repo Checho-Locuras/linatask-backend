@@ -92,7 +92,7 @@ namespace LinaTask.Application.Services
                 Title = "Nueva solicitud de sesión",
                 Message = $"{studentName} ha solicitado una sesión de {subjectName} para el {dateLabel}.",
                 Type = NotificationType.Info,
-                Category = NotificationCategory.SessionBooked,
+                Category = NotificationCategory.Sessions.Booked,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
                 ActionUrl = "/teacher/sessions",
@@ -125,7 +125,7 @@ namespace LinaTask.Application.Services
                 Title = "Sesión confirmada ✅",
                 Message = $"{teacherName} confirmó tu sesión de {subjectName} para el {dateLabel}.",
                 Type = NotificationType.Success,
-                Category = NotificationCategory.SessionConfirmed,
+                Category = NotificationCategory.Sessions.Confirmed,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
                 Actions = new List<NotificationActionDto>
@@ -151,7 +151,7 @@ namespace LinaTask.Application.Services
                 Title = "Sesión cancelada",
                 Message = $"{cancelledByName} canceló la sesión de {subjectName} del {dateLabel}.",
                 Type = NotificationType.Warning,
-                Category = NotificationCategory.SessionCancelled,
+                Category = NotificationCategory.Sessions.Cancelled,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
                 ActionUrl = "/student/sessions"
@@ -168,7 +168,7 @@ namespace LinaTask.Application.Services
                 Title = "Solicitud rechazada",
                 Message = $"{teacherName} no pudo aceptar tu solicitud de {subjectName}. Puedes buscar otro docente.",
                 Type = NotificationType.Error,
-                Category = NotificationCategory.SessionRejected,
+                Category = NotificationCategory.Sessions.Rejected,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
                 ActionUrl = "/student/schedule"
@@ -183,7 +183,7 @@ namespace LinaTask.Application.Services
                 Title = "Nuevo mensaje",
                 Message = $"{senderName} te envió un mensaje.",
                 Type = NotificationType.Info,
-                Category = NotificationCategory.Message,
+                Category = NotificationCategory.System.Message,
                 ReferenceId = conversationId,
                 ReferenceType = "Conversation",
                 ActionUrl = "/shared/chat"
@@ -199,7 +199,7 @@ namespace LinaTask.Application.Services
                 Title = "Pago recibido 💰",
                 Message = $"{studentName} realizó un pago de ${amount:N0}.",
                 Type = NotificationType.Success,
-                Category = NotificationCategory.Payment,
+                Category = NotificationCategory.System.Payment,
                 ReferenceId = paymentId,
                 ReferenceType = "Payment",
                 ActionUrl = "/teacher/earnings"
@@ -240,7 +240,7 @@ namespace LinaTask.Application.Services
                 Title = "⏰ Tu sesión comienza pronto",
                 Message = message,
                 Type = NotificationType.Info,
-                Category = NotificationCategory.SessionReminder,
+                Category = NotificationCategory.Sessions.Reminder,
                 ReferenceId = sessionId,
                 ReferenceType = "Session",
                 ActionUrl = $"/classroom/{sessionId}"

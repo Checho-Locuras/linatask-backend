@@ -171,5 +171,23 @@ namespace LinaTask.Api.Controllers
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
             catch (Exception ex) { _logger.LogError(ex, "Error"); return StatusCode(500, "Internal server error"); }
         }
+
+        // Método para realizar la entrega de la tarea
+        [HttpPut("{id:guid}/deliver")]
+        [PermissionAuthorize("MARKETPLACE.DELIVER")]
+        public async Task<ActionResult<MarketplaceTaskDto>> Deliver(
+            Guid id, [FromForm] IFormFile file)
+        {
+            try
+            {
+                var userId = CurrentUserId();
+                if (!userId.HasValue) return Unauthorized();
+                return Ok(await _taskService.DeliverAsync(id, file, userId.Value));
+            }
+            catch (KeyNotFoundException) { return NotFound(); }
+            catch (UnauthorizedAccessException ex) { return Forbid(ex.Message); }
+            catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+            catch (Exception ex) { _logger.LogError(ex, "Error delivering task"); return StatusCode(500, "Internal server error"); }
+        }
     }
 }

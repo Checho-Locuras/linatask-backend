@@ -96,6 +96,7 @@ builder.Services.AddScoped<ITaskOfferRepository, TaskOfferRepository>();
 builder.Services.AddScoped<IMarketplacePaymentRepository, MarketplacePaymentRepository>();
 builder.Services.AddScoped<ITaskCorrectionRepository, TaskCorrectionRepository>();
 builder.Services.AddScoped<IMarketplaceRatingRepository, MarketplaceRatingRepository>();
+builder.Services.AddScoped<ITaskAttachmentRepository, TaskAttachmentRepository>();
 
 // Registrar TODOS los Servicios
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

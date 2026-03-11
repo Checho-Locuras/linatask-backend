@@ -58,7 +58,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTutoringSessionsByStudentId/{studentId:guid}")]
-        [PermissionAuthorize("SESSION.VIEW")]
+        [PermissionAuthorize("SESSION.VIEW.STUDENT")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetTutoringSessionsByStudentId(Guid studentId)
         {
             try
@@ -74,7 +74,7 @@ namespace LinaTask.Api.Controllers
         }
 
         [HttpGet("getTutoringSessionsByTeacherId/{teacherId:guid}")]
-        [PermissionAuthorize("SESSION.VIEW")]
+        [PermissionAuthorize("SESSION.VIEW.TEACHER")]
         public async Task<ActionResult<IEnumerable<TutoringSessionDto>>> GetTutoringSessionsByTeacherId(Guid teacherId)
         {
             try

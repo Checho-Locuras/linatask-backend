@@ -1,4 +1,5 @@
-﻿using LinaTask.Domain.Interfaces;
+﻿using LinaTask.Domain.DTOs;
+using LinaTask.Domain.Interfaces;
 using LinaTask.Domain.Models;
 using LinaTask.Infrastructure.DataBaseContext;
 using Microsoft.EntityFrameworkCore;
@@ -129,111 +130,154 @@ namespace LinaTask.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<Menu>> GetMenusByRoleIdAsync(Guid roleId)
+        public async Task<IEnumerable<MenuWithChildrenDto>> GetMenusByRoleIdAsync(Guid roleId)
         {
-            // 1. Obtener el nombre del rol
-            var role = await _context.Roles
-                .Where(r => r.Id == roleId)
-                .Select(r => r.Name)
-                .FirstOrDefaultAsync();
-
-            if (role == null) return Enumerable.Empty<Menu>();
-
-            // 2. Prefijo de ruta según el rol
-            var routePrefix = role switch
-            {
-                "SUPER_ADMIN" or "admin" => "/admin/",
-                "teacher" => "/teacher/",
-                "student" => "/student/",
-                _ => "/admin/"
-            };
-
-            // 3. Módulos del rol
-            var roleModules = await _context.RolePermissions
+            // 1️⃣ Obtener permisos del rol
+            var rolePermissionIds = await _context.RolePermissions
                 .Where(rp => rp.RoleId == roleId)
-                .Select(rp => rp.Permission.Module)
-                .Distinct()
+                .Select(rp => rp.PermissionId)
                 .ToListAsync();
 
-            // 4. Mapeo explícito ruta → módulos requeridos
-            var menuModuleMap = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
-            {
-                // ── SHARED (un único menú para todos los roles) ──
-                { "/shared/dashboard",     new[] { "*" } },
-                { "/shared/chat",          new[] { "Chat" } },
-                { "/shared/profile",       new[] { "Profile" } },
-                { "/shared/marketplace",                new[] { "Marketplace" } },
-                { "/shared/marketplace/tasks",          new[] { "Marketplace" } },
-                { "/shared/marketplace/my-tasks",       new[] { "Marketplace" } },
-                { "/shared/marketplace/my-offers",      new[] { "Marketplace" } },
-                { "/shared/marketplace/payments",       new[] { "Marketplace" } },
-                { "/shared/marketplace/history",        new[] { "Marketplace" } },
+            if (!rolePermissionIds.Any())
+                return Enumerable.Empty<MenuWithChildrenDto>();
 
-                // ── ADMIN ────────────────────────────────────────
-                { "/admin/users",          new[] { "Users" } },
-                { "/admin/students",       new[] { "Students", "Users" } },
-                { "/admin/teachers",       new[] { "Teachers", "Users" } },
-                { "/admin/tasks",          new[] { "Tasks" } },
-                { "/admin/offers",         new[] { "Offers" } },
-                { "/admin/payments",       new[] { "Payments" } },
-                { "/admin/subjects",       new[] { "Subjects", "Teachers" } },
-                { "/admin/sessions",       new[] { "Sessions" } },
-                { "/admin/reports",        new[] { "Reports", "Payments", "Sessions", "Tasks" } },
-                { "/admin/settings",       new[] { "*" } },
 
-                // ── STUDENT ──────────────────────────────────────
-                { "/student/schedule",     new[] { "Schedule" } },
-                { "/student/sessions",     new[] { "Sessions" } },
-                { "/student/tasks",        new[] { "Tasks" } },
-                { "/student/payments",     new[] { "Payments" } },
-
-                // ── TEACHER ──────────────────────────────────────
-                { "/teacher/subjects",     new[] { "Subjects" } },
-                { "/teacher/availability", new[] { "Availability" } },
-                { "/teacher/requests",     new[] { "Requests" } },
-                { "/teacher/sessions",     new[] { "Sessions" } },
-                { "/teacher/tasks",        new[] { "Tasks" } },
-                { "/teacher/earnings",     new[] { "Earnings" } },
-            };
-
-            // 5. Obtener menús del rol + los compartidos
+            // 2️⃣ Obtener todos los menús visibles con sus permisos
             var allMenus = await _context.Menus
-                .Where(m => m.IsVisible &&
-                            (m.Route.StartsWith(routePrefix) || m.Route.StartsWith("/shared/")))
+                .Include(m => m.MenuPermissions)
+                .Where(m => m.IsVisible)
                 .OrderBy(m => m.Order)
-                .ThenBy(m => m.Name)
                 .AsNoTracking()
                 .ToListAsync();
 
-            // 6. Filtrar según permisos
-            var accessibleMenus = allMenus.Where(menu =>
+
+            // 3️⃣ Filtrar menús accesibles
+            var accessibleMenus = allMenus
+                .Where(menu =>
+                    !menu.MenuPermissions.Any() || // menú público
+                    menu.MenuPermissions.Any(mp => rolePermissionIds.Contains(mp.PermissionId))
+                )
+                .ToList();
+
+
+            // 4️⃣ Agregar padres necesarios
+            var menuDict = allMenus.ToDictionary(m => m.Id);
+
+            var result = new HashSet<Menu>(accessibleMenus);
+
+            foreach (var menu in accessibleMenus)
             {
-                if (!menuModuleMap.TryGetValue(menu.Route, out var requiredModules))
-                    return false;
+                var parentId = menu.ParentId;
 
-                if (requiredModules.Contains("*"))
-                    return true;
+                while (parentId != null && menuDict.ContainsKey(parentId.Value))
+                {
+                    var parent = menuDict[parentId.Value];
+                    result.Add(parent);
+                    parentId = parent.ParentId;
+                }
+            }
 
-                return requiredModules.Any(required =>
-                    roleModules.Contains(required, StringComparer.OrdinalIgnoreCase));
-            }).ToList();
+            var finalMenus = result
+                .OrderBy(m => m.Order)
+                .ToList();
 
-            return accessibleMenus;
+
+            // 5️⃣ Construir árbol
+            return BuildMenuTree(finalMenus);
         }
 
-
-        public async Task<IEnumerable<Menu>> GetMenusByRoleNameAsync(string roleName)
+        private List<MenuWithChildrenDto> BuildMenuTree(List<Menu> menus)
         {
-            return await _context.Menus
-                .Where(m => m.IsVisible &&
-                            m.MenuPermissions.Any(mp =>
-                                mp.Permission.RolePermissions
-                                    .Any(rp => rp.Role.Name == roleName)))
-                .Include(m => m.Children)
+            var lookup = menus.ToLookup(m => m.ParentId);
+
+            List<MenuWithChildrenDto> Build(Guid? parentId)
+            {
+                return lookup[parentId]
+                    .OrderBy(m => m.Order)
+                    .Select(m => new MenuWithChildrenDto
+                    {
+                        Id = m.Id,
+                        Name = m.Name,
+                        Icon = m.Icon,
+                        Route = m.Route,
+                        ParentId = m.ParentId,
+                        Order = m.Order,
+                        IsVisible = m.IsVisible,
+                        PermissionIds = m.MenuPermissions
+                            .Select(mp => mp.PermissionId)
+                            .ToList(),
+                        Children = Build(m.Id)
+                    })
+                    .ToList();
+            }
+
+            return Build(null);
+        }
+
+        public async Task<IEnumerable<MenuWithChildrenDto>> GetMenusByRoleNameAsync(string roleName)
+        {
+            // 1️⃣ Obtener el roleId
+            var roleId = await _context.Roles
+                .Where(r => r.Name == roleName)
+                .Select(r => r.Id)
+                .FirstOrDefaultAsync();
+
+            if (roleId == Guid.Empty)
+                return Enumerable.Empty<MenuWithChildrenDto>();
+
+
+            // 2️⃣ Obtener permisos del rol
+            var rolePermissionIds = await _context.RolePermissions
+                .Where(rp => rp.RoleId == roleId)
+                .Select(rp => rp.PermissionId)
+                .ToListAsync();
+
+            if (!rolePermissionIds.Any())
+                return Enumerable.Empty<MenuWithChildrenDto>();
+
+
+            // 3️⃣ Obtener todos los menús visibles
+            var allMenus = await _context.Menus
+                .Include(m => m.MenuPermissions)
+                .Where(m => m.IsVisible)
                 .OrderBy(m => m.Order)
-                .ThenBy(m => m.Name)
                 .AsNoTracking()
                 .ToListAsync();
+
+
+            // 4️⃣ Filtrar menús accesibles
+            var accessibleMenus = allMenus
+                .Where(menu =>
+                    !menu.MenuPermissions.Any() ||
+                    menu.MenuPermissions.Any(mp => rolePermissionIds.Contains(mp.PermissionId))
+                )
+                .ToList();
+
+
+            // 5️⃣ Agregar padres necesarios
+            var menuDict = allMenus.ToDictionary(m => m.Id);
+
+            var result = new HashSet<Menu>(accessibleMenus);
+
+            foreach (var menu in accessibleMenus)
+            {
+                var parentId = menu.ParentId;
+
+                while (parentId != null && menuDict.ContainsKey(parentId.Value))
+                {
+                    var parent = menuDict[parentId.Value];
+                    result.Add(parent);
+                    parentId = parent.ParentId;
+                }
+            }
+
+            var finalMenus = result
+                .OrderBy(m => m.Order)
+                .ToList();
+
+
+            // 6️⃣ Construir árbol
+            return BuildMenuTree(finalMenus);
         }
 
 

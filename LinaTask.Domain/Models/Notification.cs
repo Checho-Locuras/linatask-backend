@@ -11,7 +11,7 @@ namespace LinaTask.Domain.Models
         public string Title { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
         public string Type { get; set; } = NotificationType.Info;
-        public string Category { get; set; } = NotificationCategory.General;
+        public string Category { get; set; } = NotificationCategory.System.General;
         public bool IsRead { get; set; } = false;
         public DateTime? ReadAt { get; set; }
         public Guid? ReferenceId { get; set; }
@@ -31,13 +31,30 @@ namespace LinaTask.Domain.Models
 
     public static class NotificationCategory
     {
-        public const string SessionBooked = "session_booked";
-        public const string SessionConfirmed = "session_confirmed";
-        public const string SessionCancelled = "session_cancelled";
-        public const string SessionRejected = "session_rejected";
-        public const string SessionReminder = "session_reminder";
-        public const string Payment = "payment";
-        public const string Message = "message";
-        public const string General = "general";
+        public static class Sessions
+        {
+            public const string Booked = "session_booked";
+            public const string Confirmed = "session_confirmed";
+            public const string Cancelled = "session_cancelled";
+            public const string Rejected = "session_rejected";
+            public const string Reminder = "session_reminder";
+        }
+
+        public static class Marketplace
+        {
+            public const string OfferReceived = "task_offer_received";
+            public const string OfferAccepted = "task_offer_accepted";
+            public const string OfferRejected = "task_offer_rejected";
+            public const string Delivered = "task_delivered";
+            public const string RevisionRequested = "task_revision_requested";
+            public const string Completed = "task_completed";
+        }
+
+        public static class System
+        {
+            public const string Payment = "payment";
+            public const string Message = "message";
+            public const string General = "general";
+        }
     }
 }

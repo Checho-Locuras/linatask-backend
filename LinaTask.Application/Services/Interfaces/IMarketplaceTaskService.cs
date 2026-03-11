@@ -1,5 +1,6 @@
 ﻿using LinaTask.Domain.DTOs;
 using LinaTask.Domain.Enums;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -20,5 +21,6 @@ namespace LinaTask.Application.Services.Interfaces
         Task<bool> DeleteAsync(Guid id, Guid requestingUserId);
         Task<SuggestedPriceDto> GetSuggestedPriceAsync(WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline);
         Task<MarketplaceStatsDto> GetStatsAsync(Guid? userId = null);
+        Task<MarketplaceTaskDto> DeliverAsync(Guid taskId, IFormFile file, Guid teacherId);
     }
 }

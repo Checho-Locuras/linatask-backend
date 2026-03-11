@@ -40,6 +40,15 @@ namespace LinaTask.Api.Controllers.Auth
             }
         }
 
+        [HttpPost("switch-role")]
+        [Authorize]
+        public async Task<IActionResult> SwitchRole([FromBody] SwitchRoleDto dto)
+        {
+            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var response = await _authService.SwitchRoleAsync(userId, dto.RoleId);
+            return Ok(response);
+        }
+
         [HttpPost("register")]
         [AllowAnonymous]
         public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto registerDto)

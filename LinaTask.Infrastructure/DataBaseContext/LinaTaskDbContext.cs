@@ -221,7 +221,7 @@ namespace LinaTask.Infrastructure.DataBaseContext
                     .HasColumnName("category")
                     .HasMaxLength(100)
                     .IsRequired()
-                    .HasDefaultValue(NotificationCategory.General);
+                    .HasDefaultValue(NotificationCategory.System.General);
 
                 entity.Property(e => e.IsRead)
                     .HasColumnName("is_read")

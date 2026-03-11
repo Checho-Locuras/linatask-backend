@@ -45,20 +45,47 @@ namespace LinaTask.Application.Services
         {
             var task = await _taskRepo.GetByIdAsync(dto.TaskId)
                 ?? throw new KeyNotFoundException("Task not found");
-
             if (task.Status != TaskStatus.Open)
                 throw new InvalidOperationException("Task is not accepting offers");
 
             var teacher = await _userRepo.GetByIdAsync(dto.TeacherId)
                 ?? throw new InvalidOperationException("Teacher not found");
-
             if (!teacher.UserRoles.Any(ur => ur.Role.Name == "teacher"))
                 throw new InvalidOperationException("User is not a teacher");
 
             // ── Restricciones ──────────────────────────────────
             var existing = await _offerRepo.GetByTaskAndTeacherAsync(dto.TaskId, dto.TeacherId);
+
             if (existing is not null)
-                throw new InvalidOperationException("You have already placed an offer on this task");
+            {
+                // Solo puede volver a ofertar si retiró la oferta anterior
+                if (existing.Status != OfferStatus.Withdrawn)
+                    throw new InvalidOperationException("You have already placed an active offer on this task");
+
+                // Reutilizar el registro existente actualizando sus campos
+                existing.Price = dto.Price;
+                existing.Message = dto.Message;
+                existing.DeliveryTime = dto.DeliveryTime;
+                existing.SkillsSummary = dto.SkillsSummary;
+                existing.Status = OfferStatus.Pending;
+                existing.CreatedAt = DateTime.UtcNow;
+
+                var updated = await _offerRepo.UpdateAsync(existing);
+
+                await _notificationService.CreateAsync(new CreateNotificationDto
+                {
+                    UserId = task.StudentId,
+                    Title = "Nueva oferta recibida 📩",
+                    Message = $"{teacher.Name} realizó una oferta de ${dto.Price:N0} para tu tarea \"{task.Title}\".",
+                    Type = NotificationType.Info,
+                    Category = NotificationCategory.Marketplace.OfferReceived,
+                    ReferenceId = dto.TaskId,
+                    ReferenceType = "MarketplaceTask",
+                    ActionUrl = $"/student/marketplace/tasks/{dto.TaskId}"
+                });
+
+                return MapToDto(updated);
+            }
 
             var count = await _offerRepo.CountByTaskIdAsync(dto.TaskId);
             if (count >= MaxOffersPerTask)
@@ -79,18 +106,16 @@ namespace LinaTask.Application.Services
 
             var created = await _offerRepo.CreateAsync(offer);
 
-            // Actualizar contador de ofertas en la tarea
             task.OffersCount = count + 1;
             await _taskRepo.UpdateAsync(task);
 
-            // Notificar al estudiante
             await _notificationService.CreateAsync(new CreateNotificationDto
             {
                 UserId = task.StudentId,
                 Title = "Nueva oferta recibida 📩",
                 Message = $"{teacher.Name} realizó una oferta de ${dto.Price:N0} para tu tarea \"{task.Title}\".",
                 Type = NotificationType.Info,
-                Category = NotificationCategory.General,
+                Category = NotificationCategory.Marketplace.OfferReceived,
                 ReferenceId = dto.TaskId,
                 ReferenceType = "MarketplaceTask",
                 ActionUrl = $"/student/marketplace/tasks/{dto.TaskId}"
@@ -165,7 +190,7 @@ namespace LinaTask.Application.Services
                 Title = "¡Tu oferta fue aceptada! 🎉",
                 Message = $"El estudiante seleccionó tu oferta para la tarea \"{task.Title}\". Espera la confirmación del pago.",
                 Type = NotificationType.Success,
-                Category = NotificationCategory.General,
+                Category = NotificationCategory.Marketplace.OfferAccepted,
                 ReferenceId = taskId,
                 ReferenceType = "MarketplaceTask",
                 ActionUrl = $"/teacher/marketplace/tasks/{taskId}"

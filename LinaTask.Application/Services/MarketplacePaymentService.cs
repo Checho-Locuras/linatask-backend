@@ -136,7 +136,7 @@ namespace LinaTask.Application.Services
                 Message = $"El estudiante aprobó la tarea \"{task.Title}\". " +
                           $"Se han liberado ${payment.TeacherAmount:N0} a tu cuenta.",
                 Type = NotificationType.Success,
-                Category = NotificationCategory.Payment,
+                Category = NotificationCategory.System.Payment,
                 ReferenceId = taskId,
                 ReferenceType = "MarketplaceTask",
                 ActionUrl = "/teacher/earnings"
@@ -192,7 +192,7 @@ namespace LinaTask.Application.Services
                         Message = $"El pago de ${payment.TeacherAmount:N0} fue liberado automáticamente " +
                                   $"tras 3 días sin respuesta del estudiante.",
                         Type = NotificationType.Success,
-                        Category = NotificationCategory.Payment,
+                        Category = NotificationCategory.System.Payment,
                         ReferenceId = payment.TaskId,
                         ReferenceType = "MarketplaceTask"
                     });

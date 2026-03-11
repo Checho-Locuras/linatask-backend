@@ -68,7 +68,7 @@ namespace LinaTask.Application.Services
                 Title = $"Corrección solicitada ({task.CorrectionsUsed}/{task.MaxCorrections}) 📝",
                 Message = $"El estudiante solicitó una corrección para \"{task.Title}\": {dto.Reason}",
                 Type = NotificationType.Warning,
-                Category = NotificationCategory.General,
+                Category = NotificationCategory.Marketplace.OfferAccepted,
                 ReferenceId = dto.TaskId,
                 ReferenceType = "MarketplaceTask",
                 ActionUrl = $"/teacher/marketplace/tasks/{dto.TaskId}"
@@ -105,7 +105,7 @@ namespace LinaTask.Application.Services
                 Title = "Corrección entregada ✅",
                 Message = $"El docente entregó la corrección para \"{task.Title}\". Revísala y aprueba o solicita otra corrección.",
                 Type = NotificationType.Info,
-                Category = NotificationCategory.General,
+                Category = NotificationCategory.Marketplace.OfferAccepted,
                 ReferenceId = task.Id,
                 ReferenceType = "MarketplaceTask",
                 ActionUrl = $"/student/marketplace/tasks/{task.Id}"

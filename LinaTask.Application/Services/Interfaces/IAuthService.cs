@@ -9,5 +9,6 @@ namespace LinaTask.Application.Services.Interfaces
         Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto);
         Task<bool> RevokeTokenAsync(string userId);
         Task ChangePasswordAsync(Guid userId, ChangePasswordDto dto);
+        Task<AuthResponseDto> SwitchRoleAsync(Guid userId, Guid roleId);
     }
 }
