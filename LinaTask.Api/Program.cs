@@ -18,6 +18,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
+using MercadoPago.Config;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,9 +72,16 @@ builder.Services.AddAuthentication(options =>
 
 // Startup.cs o Program.cs
 var connectionString = builder.Configuration["ConnectionStrings:PostgreSQL"];
-Console.WriteLine($"Connection String: {connectionString?.Substring(0, 20)}...");
+//Console.WriteLine($"Connection String: {connectionString?.Substring(0, 20)}...");
 
 builder.Services.AddAuthorization();
+
+//Registramos MercadoPago
+// Registrar MercadoPago
+var mpAccessToken = builder.Configuration["MercadoPago:AccessToken"]
+    ?? throw new InvalidOperationException("MercadoPago AccessToken not configured");
+
+MercadoPagoConfig.AccessToken = mpAccessToken;
 
 // Registrar TODOS los Repositorios
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
@@ -126,6 +134,9 @@ builder.Services.AddScoped<ITaskOfferService, TaskOfferService>();
 builder.Services.AddScoped<IMarketplacePaymentService, MarketplacePaymentService>();
 builder.Services.AddScoped<ITaskCorrectionService, TaskCorrectionService>();
 builder.Services.AddScoped<IMarketplaceRatingService, MarketplaceRatingService>();
+
+//MercadoPago
+builder.Services.AddScoped<IMercadoPagoService, MercadoPagoService>();
 
 // Backgroung Services
 builder.Services.AddHostedService<SessionReminderService>();

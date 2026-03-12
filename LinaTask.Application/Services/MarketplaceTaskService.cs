@@ -135,19 +135,118 @@ namespace LinaTask.Application.Services
             return await _taskRepo.DeleteAsync(id);
         }
 
-        public Task<SuggestedPriceDto> GetSuggestedPriceAsync(
-            WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline)
+        public Task<SuggestedPriceDto> GetSuggestedPriceAsync(WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline, int? estimatedPages = null, string? estimatedDuration = null, string? description = null)
         {
-            var price = CalculateSuggestedPrice(workType, level, isUrgent, deadline);
-            var result = new SuggestedPriceDto
+            // ── 1. Precio base por tipo de trabajo ──────────────────────────────
+            decimal basePrice = workType switch
+            {
+                WorkType.Essay => 40_000,
+                WorkType.Workshop => 55_000,
+                WorkType.Exam => 50_000,
+                WorkType.Project => 80_000,
+                WorkType.Programming => 90_000,
+                WorkType.Research => 70_000,
+                WorkType.Presentation => 60_000,
+                WorkType.Other => 45_000,
+                _ => 45_000
+            };
+
+            // ── 2. Multiplicador de nivel académico ─────────────────────────────
+            decimal levelMultiplier = level switch
+            {
+                AcademicLevel.School => 0.7m,
+                AcademicLevel.Technical => 0.9m,
+                AcademicLevel.University => 1.0m,
+                AcademicLevel.Postgraduate => 1.4m,
+                _ => 1.0m
+            };
+
+            // ── 3. Multiplicador por páginas estimadas ──────────────────────────
+            decimal pageMultiplier = 1.0m;
+            if (estimatedPages.HasValue && estimatedPages > 0)
+            {
+                // Escala logarítmica: 1p=0.8x  5p=1.0x  10p=1.3x  20p=1.6x  50p=2.0x
+                pageMultiplier = 0.7m + (decimal)Math.Log(estimatedPages.Value + 1, 2) * 0.18m;
+                pageMultiplier = Math.Min(pageMultiplier, 2.5m); // tope
+            }
+
+            // ── 4. Multiplicador por duración/cantidad estimada ─────────────────
+            decimal durationMultiplier = 1.0m;
+            if (!string.IsNullOrWhiteSpace(estimatedDuration))
+            {
+                // Busca números en el texto: "10 ejercicios" → 10, "2 horas" → 2
+                var numbers = System.Text.RegularExpressions.Regex
+                    .Matches(estimatedDuration, @"\d+")
+                    .Select(m => int.Parse(m.Value))
+                    .ToList();
+
+                if (numbers.Any())
+                {
+                    int qty = numbers.Max();
+                    // Escalado suave: 1=0.9  10=1.1  30=1.3  50+=1.5
+                    durationMultiplier = 0.9m + Math.Min((decimal)Math.Log(qty + 1, 10) * 0.3m, 0.6m);
+                }
+            }
+
+            // ── 5. Multiplicador por complejidad de descripción ─────────────────
+            decimal complexityMultiplier = 1.0m;
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                int wordCount = description.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                // Más palabras = descripción más detallada = trabajo más específico
+                if (wordCount > 150) complexityMultiplier = 1.20m;
+                else if (wordCount > 75) complexityMultiplier = 1.10m;
+                else if (wordCount > 30) complexityMultiplier = 1.05m;
+                // <30 palabras: sin ajuste
+            }
+
+            // ── 6. Multiplicador por urgencia ───────────────────────────────────
+            decimal urgencyMultiplier = isUrgent ? 1.35m : 1.0m;
+
+            // ── 7. Multiplicador por deadline ───────────────────────────────────
+            var hoursUntilDeadline = (deadline - DateTime.UtcNow).TotalHours;
+            decimal deadlineMultiplier = hoursUntilDeadline switch
+            {
+                < 12 => 1.8m,
+                < 24 => 1.5m,
+                < 48 => 1.25m,
+                < 72 => 1.10m,
+                < 168 => 1.0m,
+                _ => 0.92m   // más de 7 días → ligero descuento
+            };
+
+            // ── 8. Precio final ─────────────────────────────────────────────────
+            decimal price = basePrice
+                * levelMultiplier
+                * pageMultiplier
+                * durationMultiplier
+                * complexityMultiplier
+                * urgencyMultiplier
+                * deadlineMultiplier;
+
+            price = Math.Round(price / 1000m, 0) * 1000m; // redondear a miles
+
+            // ── 9. Construir rationale ───────────────────────────────────────────
+            var factors = new List<string>();
+            if (estimatedPages.HasValue) factors.Add($"{estimatedPages} pág.");
+            if (!string.IsNullOrEmpty(estimatedDuration)) factors.Add(estimatedDuration);
+            if (isUrgent) factors.Add("recargo de urgencia");
+            if (hoursUntilDeadline < 72) factors.Add($"plazo de {Math.Round(hoursUntilDeadline)}h");
+
+            string rationale = $"Estimado para {workType} de nivel {level}"
+                + (factors.Any() ? $" — {string.Join(", ", factors)}" : "");
+
+            return Task.FromResult(new SuggestedPriceDto
             {
                 SuggestedPrice = price,
-                MinPrice = Math.Round(price * 0.7m, 0),
-                MaxPrice = Math.Round(price * 1.5m, 0),
-                Rationale = $"Basado en {workType} de nivel {level}" +
-                            (isUrgent ? ", con recargo de urgencia" : "")
-            };
-            return Task.FromResult(result);
+                MinPrice = Math.Round(price * 0.7m / 1000m, 0) * 1000m,
+                MaxPrice = Math.Round(price * 1.5m / 1000m, 0) * 1000m,
+                Rationale = rationale,
+                BasePrice = Math.Round(basePrice * levelMultiplier / 1000m, 0) * 1000m,
+                UrgencyMultiplier = urgencyMultiplier,
+                DeadlineMultiplier = deadlineMultiplier,
+                ComplexityMultiplier = complexityMultiplier * pageMultiplier * durationMultiplier
+            });
         }
 
         public async Task<MarketplaceStatsDto> GetStatsAsync(Guid? userId = null)
@@ -331,6 +430,46 @@ namespace LinaTask.Application.Services
             });
 
             return await GetByIdAsync(taskId);
+        }
+
+        public async Task<TaskAttachmentDto> AddAttachmentAsync(Guid taskId, IFormFile file, Guid uploadedBy)
+        {
+            var task = await _taskRepo.GetByIdAsync(taskId)
+                ?? throw new KeyNotFoundException("La tarea no existe");
+
+            if (file == null || file.Length == 0)
+                throw new InvalidOperationException("El archivo está vacío");
+
+            if (file.Length > 52_428_800) // 50MB
+                throw new InvalidOperationException("El archivo no puede superar 50MB");
+
+            var uploadResult = await _fileUploadService.UploadAsync(file, "marketplace-attachments");
+
+            var attachment = new TaskAttachment
+            {
+                Id = Guid.NewGuid(),
+                TaskId = taskId,
+                FileName = file.FileName,
+                FileUrl = uploadResult.Url,
+                FileSize = uploadResult.FileSize,
+                MimeType = uploadResult.ContentType,
+                UploadedBy = uploadedBy,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _attachmentRepository.AddAsync(attachment);
+
+            return new TaskAttachmentDto
+            {
+                Id = attachment.Id,
+                TaskId = attachment.TaskId,
+                FileName = attachment.FileName,
+                FileUrl = attachment.FileUrl,
+                FileSize = attachment.FileSize,
+                MimeType = attachment.MimeType,
+                UploadedBy = attachment.UploadedBy,
+                CreatedAt = attachment.CreatedAt
+            };
         }
     }
 }

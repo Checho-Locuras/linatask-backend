@@ -48,5 +48,12 @@ namespace LinaTask.Infrastructure.Repositories
             await _context.SaveChangesAsync();
             return (await GetByIdAsync(payment.Id))!;
         }
+
+        public async Task<MarketplacePayment?> GetByExternalPaymentIdAsync(string externalPaymentId) =>
+            await BaseQuery()
+                .FirstOrDefaultAsync(p => p.ExternalPaymentId == externalPaymentId);
+
+        public async Task<MarketplacePayment?> GetBySessionIdAsync(Guid sessionId) =>
+            await BaseQuery().FirstOrDefaultAsync(p => p.SessionId == sessionId);
     }
 }

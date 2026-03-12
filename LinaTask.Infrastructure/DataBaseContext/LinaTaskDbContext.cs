@@ -870,6 +870,15 @@ namespace LinaTask.Infrastructure.DataBaseContext
                     .WithMany()
                     .HasForeignKey(p => p.TeacherId)
                     .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(p => p.Session)
+                     .WithMany()
+                     .HasForeignKey(p => p.SessionId)
+                     .OnDelete(DeleteBehavior.SetNull);
+
+                e.Property(p => p.PaymentContext)
+                 .HasMaxLength(20)
+                 .HasDefaultValue("task");
             });
 
             // ── TaskCorrectionRequest ────────────────────────────────────

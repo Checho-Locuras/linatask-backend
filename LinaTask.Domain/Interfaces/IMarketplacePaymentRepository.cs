@@ -9,6 +9,8 @@ namespace LinaTask.Domain.Interfaces
     {
         Task<MarketplacePayment?> GetByTaskIdAsync(Guid taskId);
         Task<MarketplacePayment?> GetByIdAsync(Guid id);
+        Task<MarketplacePayment?> GetBySessionIdAsync(Guid sessionId);
+        Task<MarketplacePayment?> GetByExternalPaymentIdAsync(string externalPaymentId);
         Task<IEnumerable<MarketplacePayment>> GetPendingAutoReleaseAsync(DateTime upTo);
         Task<MarketplacePayment> CreateAsync(MarketplacePayment payment);
         Task<MarketplacePayment> UpdateAsync(MarketplacePayment payment);

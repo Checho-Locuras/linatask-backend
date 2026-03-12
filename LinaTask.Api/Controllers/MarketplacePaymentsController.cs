@@ -44,7 +44,7 @@ namespace LinaTask.Api.Controllers
         // Iniciar pago (estudiante)
         [HttpPost("initiate")]
         [PermissionAuthorize("MARKETPLACE.PAY")]
-        public async Task<ActionResult<MarketplacePaymentDto>> Initiate([FromBody] InitiatePaymentDto dto)
+        public async Task<ActionResult<MarketplacePaymentDto>> Initiate([FromBody] InitiatePaymentRequestDto dto)
         {
             try
             {
@@ -60,12 +60,22 @@ namespace LinaTask.Api.Controllers
 
         // Confirmar retención (webhook de pasarela de pago)
         [HttpPost("confirm-held/{taskId:guid}")]
-        public async Task<ActionResult<MarketplacePaymentDto>> ConfirmHeld(Guid taskId)
+        public async Task<ActionResult<MarketplacePaymentDto>> ConfirmHeld(Guid taskId,[FromBody] ConfirmHeldRequestDto dto)
         {
-            try { return Ok(await _paymentService.ConfirmPaymentHeldAsync(taskId)); }
+            try
+            {
+                var result = await _paymentService
+                    .ConfirmPaymentHeldAsync(taskId, dto.ExternalPaymentId);
+
+                return Ok(result);
+            }
             catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
-            catch (Exception ex) { _logger.LogError(ex, "Error confirming payment"); return StatusCode(500, "Internal server error"); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error confirming payment");
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         // Aprobar y liberar pago (estudiante)

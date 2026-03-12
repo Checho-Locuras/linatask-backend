@@ -126,30 +126,32 @@ namespace LinaTask.Domain.DTOs
     public class MarketplacePaymentDto
     {
         public Guid Id { get; set; }
-        public Guid TaskId { get; set; }
+        public Guid? TaskId { get; set; }
         public string TaskTitle { get; set; } = string.Empty;
         public Guid StudentId { get; set; }
         public string StudentName { get; set; } = string.Empty;
         public Guid TeacherId { get; set; }
         public string TeacherName { get; set; } = string.Empty;
-
         public decimal Amount { get; set; }
         public decimal PlatformFee { get; set; }
         public decimal TeacherAmount { get; set; }
-
         public string Status { get; set; } = string.Empty;
         public string? PaymentMethod { get; set; }
-
         public DateTime? HeldAt { get; set; }
         public DateTime? ReleasedAt { get; set; }
         public DateTime? AutoReleaseAt { get; set; }
-
         public DateTime CreatedAt { get; set; }
+        public Guid? SessionId { get; set; }          // null si es tarea
+        public string PaymentContext { get; set; } = "task"; // "task" | "session"
     }
 
     public class InitiatePaymentDto
     {
-        public Guid TaskId { get; set; }
+        public Guid? TaskId { get; set; }
+        public Guid? SessionId { get; set; }
+
+        public PaymentContextType PaymentContext { get; set; }
+
         public string PaymentMethod { get; set; } = string.Empty;
     }
 
@@ -246,5 +248,17 @@ namespace LinaTask.Domain.DTOs
         public decimal MinPrice { get; set; }
         public decimal MaxPrice { get; set; }
         public string Rationale { get; set; } = string.Empty;
+
+        // Desglose de factores (nuevo — para mostrar en UI)
+        public decimal BasePrice { get; set; }
+        public decimal UrgencyMultiplier { get; set; }
+        public decimal DeadlineMultiplier { get; set; }
+        public decimal ComplexityMultiplier { get; set; }
+    }
+
+    public class AddTaskAttachmentDto
+    {
+        public Guid UploadedBy { get; set; }
+        // El archivo viene como IFormFile en el controller
     }
 }

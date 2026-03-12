@@ -102,7 +102,7 @@ namespace LinaTask.Domain.Models
     public class MarketplacePayment
     {
         public Guid Id { get; set; }
-        public Guid TaskId { get; set; }
+        public Guid? TaskId { get; set; }
         public Guid StudentId { get; set; }
         public Guid TeacherId { get; set; }
 
@@ -126,6 +126,10 @@ namespace LinaTask.Domain.Models
         public MarketplaceTask? Task { get; set; }
         public User? Student { get; set; }
         public User? Teacher { get; set; }
+
+        public Guid? SessionId { get; set; }          // null si es tarea
+        public string PaymentContext { get; set; } = "task"; // "task" | "session"
+        public TutoringSession? Session { get; set; }
     }
 
     // ──────────────────────────────────────────────────────────

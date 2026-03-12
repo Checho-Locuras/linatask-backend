@@ -103,14 +103,23 @@ namespace LinaTask.Api.Controllers
             [FromQuery] WorkType workType,
             [FromQuery] AcademicLevel academicLevel,
             [FromQuery] bool isUrgent = false,
-            [FromQuery] DateTime? deadline = null)
+            [FromQuery] DateTime? deadline = null,
+            [FromQuery] int? estimatedPages = null,
+            [FromQuery] string? estimatedDuration = null,
+            [FromQuery] string? description = null)
         {
             try
             {
                 var dl = deadline ?? DateTime.UtcNow.AddDays(7);
-                return Ok(await _taskService.GetSuggestedPriceAsync(workType, academicLevel, isUrgent, dl));
+                return Ok(await _taskService.GetSuggestedPriceAsync(
+                    workType, academicLevel, isUrgent, dl,
+                    estimatedPages, estimatedDuration, description));
             }
-            catch (Exception ex) { _logger.LogError(ex, "Error"); return StatusCode(500, "Internal server error"); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting suggested price");
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         // ── GET stats ──────────────────────────────────────────
@@ -136,6 +145,25 @@ namespace LinaTask.Api.Controllers
             }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
             catch (Exception ex) { _logger.LogError(ex, "Error creating marketplace task"); return StatusCode(500, "Internal server error"); }
+        }
+
+        [HttpPost("{id:guid}/attachments")]
+        [PermissionAuthorize("MARKETPLACE.CREATE")]
+        public async Task<ActionResult<TaskAttachmentDto>> AddAttachment(Guid id, [FromForm] IFormFile file)
+        {
+            try
+            {
+                var userId = CurrentUserId();
+                if (!userId.HasValue) return Unauthorized();
+                return Ok(await _taskService.AddAttachmentAsync(id, file, userId.Value));
+            }
+            catch (KeyNotFoundException) { return NotFound(); }
+            catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding attachment to task {TaskId}", id);
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         // ── PUT update ─────────────────────────────────────────

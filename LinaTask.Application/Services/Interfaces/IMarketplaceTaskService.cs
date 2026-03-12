@@ -19,8 +19,9 @@ namespace LinaTask.Application.Services.Interfaces
         Task<MarketplaceTaskDto> CreateAsync(CreateMarketplaceTaskDto dto, Guid requestingUserId);
         Task<MarketplaceTaskDto> UpdateAsync(Guid id, UpdateMarketplaceTaskDto dto, Guid requestingUserId);
         Task<bool> DeleteAsync(Guid id, Guid requestingUserId);
-        Task<SuggestedPriceDto> GetSuggestedPriceAsync(WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline);
+        Task<SuggestedPriceDto> GetSuggestedPriceAsync(WorkType workType, AcademicLevel level, bool isUrgent, DateTime deadline, int? estimatedPages = null, string? estimatedDuration = null, string? description = null);
         Task<MarketplaceStatsDto> GetStatsAsync(Guid? userId = null);
         Task<MarketplaceTaskDto> DeliverAsync(Guid taskId, IFormFile file, Guid teacherId);
+        Task<TaskAttachmentDto> AddAttachmentAsync(Guid taskId, IFormFile file, Guid uploadedBy);
     }
 }
